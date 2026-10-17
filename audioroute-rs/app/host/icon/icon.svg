@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Ícone do audioroute: um cabo virtual da entrada (azul) até a saída (verde). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#232833"/>
+      <stop offset="1" stop-color="#111318"/>
+    </linearGradient>
+    <linearGradient id="cable" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4fc3f7"/>
+      <stop offset="1" stop-color="#81c784"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#bg)" stroke="#3a4150" stroke-width="4"/>
+  <path d="M68 92 C 150 92, 106 164, 188 164" fill="none" stroke="url(#cable)" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="68" cy="92" r="26" fill="#4fc3f7" stroke="#111318" stroke-width="8"/>
+  <circle cx="188" cy="164" r="26" fill="#81c784" stroke="#111318" stroke-width="8"/>
+</svg>

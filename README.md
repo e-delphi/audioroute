@@ -1,8 +1,12 @@
+<img src="audioroute-rs/app/host/icon/icon-256.png" width="96" alt="">
+
 # audioroute
 
 Roteador de áudio para Windows com **latência de estúdio**. Ligue qualquer entrada (microfone, o som
 que toca numa saída) a qualquer saída (fone, caixa de som) desenhando cabos num canvas, inclusive
 entre computadores da mesma rede.
+
+![O canvas do audioroute: microfones e saídas ligados por cabos, um computador da rede e o painel do cabo selecionado](docs/tela.png)
 
 - **Cabos virtuais** com ganho, mudo e mixagem: vários microfones numa saída, um microfone em
   várias saídas.
