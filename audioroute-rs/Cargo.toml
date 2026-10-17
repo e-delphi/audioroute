@@ -1,0 +1,19 @@
+[workspace]
+resolver = "3"
+members = ["crates/core", "crates/wasapi", "crates/control", "crates/net", "crates/cli", "app/host"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+audioroute-core = { path = "crates/core" }
+audioroute-wasapi = { path = "crates/wasapi" }
+audioroute-control = { path = "crates/control" }
+audioroute-net = { path = "crates/net" }
+
+[profile.release]
+# Áudio: otimização máxima e sem checagens de overflow no caminho quente.
+opt-level = 3
+lto = "thin"
+codegen-units = 1

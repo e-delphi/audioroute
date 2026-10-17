@@ -1,0 +1,17 @@
+[package]
+name = "audioroute-cli"
+description = "Linha de comando do audioroute"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "audioroute-cli"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.104"
+audioroute-core.workspace = true
+audioroute-wasapi.workspace = true
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+uuid = "1.28.0"

@@ -1,0 +1,36 @@
+[package]
+name = "audioroute-app"
+description = "App desktop do audioroute: janela Win32 + WebView2 criadas à mão (sem Tauri)"
+version.workspace = true
+edition.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "audioroute"
+path = "src/main.rs"
+
+[dependencies]
+audioroute-core.workspace = true
+audioroute-wasapi.workspace = true
+audioroute-control.workspace = true
+audioroute-net.workspace = true
+serde = "1.0.229"
+serde_json = "1.0.154"
+uuid = "1.28.0"
+webview2-com = "0.39.1"
+windows = { version = "0.62.2", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Dwm",
+  "Win32_Graphics_Gdi",
+  "Win32_System_Com",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Threading",
+  "Win32_UI_HiDpi",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[build-dependencies]
+# Embute o ícone (MAINICON) no exe: janela, barra de tarefas e bandeja.
+embed-resource = "3.0.12"

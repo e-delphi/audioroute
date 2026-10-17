@@ -1,0 +1,6 @@
+# Compilação do Rust e o exe gerado (vai para os Releases do GitHub)
+target/
+release/
+
+# Configurações locais do Claude Code
+.claude/

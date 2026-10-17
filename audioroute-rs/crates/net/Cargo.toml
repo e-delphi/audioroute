@@ -1,0 +1,11 @@
+[package]
+name = "audioroute-net"
+description = "Rede do audioroute: descoberta, controle por TCP e áudio por UDP entre computadores"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+audioroute-core.workspace = true
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+uuid = { version = "1.28.0", features = ["serde"] }

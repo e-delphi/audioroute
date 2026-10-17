@@ -1,0 +1,10 @@
+[package]
+name = "audioroute-control"
+description = "Fachada do audioroute: o que uma interface pode pedir ao motor"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+audioroute-core.workspace = true
+serde = { version = "1", features = ["derive"] }
+uuid = "1"

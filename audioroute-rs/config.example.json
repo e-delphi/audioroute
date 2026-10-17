@@ -1,0 +1,21 @@
+{
+  "bufferMs": 30,
+  "devices": [
+    {
+      "id": "032f0437-bc22-5800-820e-92c32e08f003",
+      "name": "Grupo de microfones (2- GK71)",
+      "description": "Microfone do headset",
+      "delayMs": 0
+    },
+    {
+      "id": "f0ad5425-bac2-50cd-abf9-d6124f44f24c",
+      "name": "Fones de ouvido (2- GK71)",
+      "description": "Fone do headset",
+      "delayMs": 0
+    }
+  ],
+  "routes": [
+    { "from": "032f0437-bc22-5800-820e-92c32e08f003", "to": "f0ad5425-bac2-50cd-abf9-d6124f44f24c", "gain": 0.8 },
+    { "from": "359415d3-e85d-57ce-b77b-3732353848e8", "to": "f0ad5425-bac2-50cd-abf9-d6124f44f24c", "mute": true }
+  ]
+}
