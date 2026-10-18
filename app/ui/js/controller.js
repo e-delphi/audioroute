@@ -47,6 +47,7 @@ const Controller = {
             'Todo o áudio do audioroute será desligado. Os cabos ficam salvos e voltam quando você escolher o papel de novo.',
           ),
         ),
+        firewallBanner('Os outros computadores não vão conseguir se conectar a este.'),
         h('div', { class: 'workspace' }, canvas, side),
       ),
     )
@@ -339,12 +340,19 @@ const Controller = {
 
     function renderNetwork(net) {
       const peers = net?.peers || []
+      // O endereço que se digita no participante quando ele não acha este computador sozinho.
+      const here = net?.address ? `${net.address}${net.port && net.port !== 47801 ? `:${net.port}` : ''}` : null
       network.classList.toggle('on', peers.length > 0)
       network.textContent =
-        peers.length === 0 ? '🔗 Rede: nenhum participante' : `🔗 Rede: ${peers.length} ${peers.length === 1 ? 'computador' : 'computadores'}`
-      network.title = peers.length
-        ? peers.map((p) => `${p.name} (${p.address}): ${p.devices} dispositivos`).join('\n')
-        : 'Abra o audioroute em outro computador da mesma rede e escolha "Participante".'
+        (peers.length === 0 ? '🔗 Rede: nenhum participante' : `🔗 Rede: ${peers.length} ${peers.length === 1 ? 'computador' : 'computadores'}`) +
+        (here ? ` · este computador: ${here}` : '')
+      network.title = [
+        ...peers.map((p) => `${p.name} (${p.address}): ${p.devices} dispositivos`),
+        peers.length ? '' : 'Abra o audioroute em outro computador da mesma rede e escolha "Participante".',
+        here ? `Se ele não achar este computador sozinho, digite lá: ${here}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
     }
 
     // ---- ciclo de vida ----

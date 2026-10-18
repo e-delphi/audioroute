@@ -60,11 +60,31 @@ impl Inner {
     /// Estado da rede para a interface.
     fn network(&self) -> Value {
         match (&self.hub, &self.participant) {
-            (Some(hub), _) => json!({ "role": "controller", "peers": hub.peers() }),
+            (Some(hub), _) => json!({
+                "role": "controller",
+                "peers": hub.peers(),
+                // Para digitar no participante se a descoberta automática falhar.
+                "address": audioroute_net::local_ip().map(|ip| ip.to_string()),
+                "port": hub.control_port(),
+            }),
             (_, Some(p)) => json!({ "role": "participant", "status": p.status() }),
             _ => json!({ "role": "" }),
         }
     }
+}
+
+/// Endereço do controlador digitado no participante (participant.json).
+fn saved_controller() -> Option<String> {
+    let text = std::fs::read_to_string(data_dir().ok()?.join("participant.json")).ok()?;
+    let v: Value = serde_json::from_str(&text).ok()?;
+    v.get("controller").and_then(Value::as_str).map(str::to_owned)
+}
+
+fn save_controller(address: Option<&str>) -> Result<(), String> {
+    let dir = data_dir()?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let text = serde_json::to_string_pretty(&json!({ "controller": address })).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("participant.json"), text).map_err(|e| e.to_string())
 }
 
 /// Nome deste computador na rede.
@@ -180,6 +200,20 @@ fn handle(cmd: &str, args: &Value) -> CmdResult {
             Ok(Value::Null)
         }
         "network" => Ok(st.lock().network()),
+        "firewall" => to_value(crate::firewall::status()),
+        "allow_firewall" => to_value(crate::firewall::allow()?),
+        "set_controller_address" => {
+            // null ou vazio: volta à busca automática.
+            let address = args.get("address").and_then(Value::as_str).map(str::trim).filter(|a| !a.is_empty());
+            if let Some(a) = address {
+                audioroute_net::resolve(a).map_err(|e| format!("endereço \"{a}\" inválido: {e}"))?;
+            }
+            save_controller(address)?;
+            let inner = st.lock();
+            let p = inner.participant.as_ref().ok_or("este computador não está no papel de participante")?;
+            p.set_controller(address.map(str::to_owned));
+            Ok(inner.network())
+        }
         "devices" => {
             let mut inner = st.lock();
             if let Some(s) = inner.service.as_mut() {
@@ -268,8 +302,8 @@ fn set_role(st: &AppState, role: &str) -> Result<(), String> {
         }
         inner.hub = Some(hub);
     } else {
-        inner.participant =
-            Some(Participant::start(backend.clone(), machine_id, computer_name(), ParticipantOptions::default()));
+        let opts = ParticipantOptions { controller: saved_controller(), ..Default::default() };
+        inner.participant = Some(Participant::start(backend.clone(), machine_id, computer_name(), opts));
     }
     inner.backend = Some(backend);
     inner.role = Some(role.to_owned());

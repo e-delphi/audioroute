@@ -3,7 +3,7 @@
 Roteador de áudio com **latência de estúdio**: cada computador (e futuramente Android) roda o app
 como um **nó**, compartilhando seus microfones e alto-falantes. Qualquer entrada pode ser ligada a
 qualquer saída, num canvas com cabos virtuais, com mixagem, ganho, mute, atraso e compensação de
-drift. Projeto em `audioroute-rs/` (Rust + WebView2). Compilar: `build.bat` → `releaseudioroute.exe`.
+drift. Compilar: `build.bat` → `release\audioroute.exe`.
 
 ## Histórico das decisões
 
@@ -37,15 +37,14 @@ drift. Projeto em `audioroute-rs/` (Rust + WebView2). Compilar: `build.bat` → 
 ## Estrutura
 
 ```
-audioroute-rs/
-  crates/core      tipos, identidade, config, motor (rotas, mix, drift, reamostrador)
-  crates/wasapi    backend Windows: enumeração, streams, medidor do sistema, sondagem
-  crates/control   fachada usada pela interface
-  crates/net       rede: descoberta, controle TCP, áudio UDP; NetBackend junta local + remoto
-  crates/cli       audioroute --list / --probe / --measure / config.json
-  app/ui           interface: HTML, CSS e JS puros, embutidos no exe
-  app/host         janela Win32 + WebView2, bandeja, ponte JSON (exe audioroute)
-  release/         audioroute.exe (app final, sem instalador)
+crates/core      tipos, identidade, config, motor (rotas, mix, drift, reamostrador)
+crates/wasapi    backend Windows: enumeração, streams, medidor do sistema, sondagem
+crates/control   fachada usada pela interface
+crates/net       rede: descoberta, controle TCP, áudio UDP; NetBackend junta local + remoto
+crates/cli       audioroute-cli --list / --probe / --measure / config.json
+app/ui           interface: HTML, CSS e JS puros, embutidos no exe
+app/host         janela Win32 + WebView2, bandeja, ponte JSON (exe audioroute)
+release/         audioroute.exe (app final, sem instalador)
 ```
 
 ## config.json

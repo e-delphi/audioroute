@@ -25,7 +25,16 @@ use audioroute_core::{DeviceInfo, DeviceLister, Stream, StreamOpener, StreamRequ
 use uuid::Uuid;
 
 pub use hub::{HubOptions, NetHub, PeerView};
-pub use participant::{Participant, ParticipantOptions, ParticipantStatus};
+pub use participant::{Participant, ParticipantOptions, ParticipantStatus, resolve};
+
+/// IP deste computador na rede local (o da rota padrão), para o usuário
+/// digitar no participante quando a descoberta automática não funciona.
+/// Não envia nada: só pergunta ao sistema qual interface seria usada.
+pub fn local_ip() -> Option<std::net::IpAddr> {
+    let socket = std::net::UdpSocket::bind(("0.0.0.0", 0)).ok()?;
+    socket.connect(("8.8.8.8", 53)).ok()?;
+    socket.local_addr().ok().map(|a| a.ip()).filter(|ip| !ip.is_unspecified())
+}
 
 /// Folga para a variação de chegada dos pacotes (20 ms). Entra no buffer dos
 /// cabos que passam pela rede.

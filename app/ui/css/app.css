@@ -107,6 +107,20 @@ textarea { resize: vertical; }
 .participant .status { color: var(--warn); flex: 1; }
 .participant .status.ok { color: var(--output); }
 .participant .status.bad { color: var(--danger); }
+.participant .connect {
+  display: grid;
+  gap: 6px;
+  margin-top: 20px;
+  padding: 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.participant .connect .row button { flex: 0 0 auto; }
+.participant .connect input { flex: 1; min-width: 0; }
+.participant .connect small { color: var(--muted); line-height: 1.4; }
+.participant .connect .net-error { color: var(--danger); }
+.participant .connect .net-error:empty { display: none; }
 .participant .note { color: var(--muted); line-height: 1.5; }
 .participant h2 { font-size: 16px; margin: 24px 0 8px; }
 .participant ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
@@ -349,6 +363,20 @@ textarea { resize: vertical; }
 .hint { margin: -8px 0 0; color: var(--muted); font-size: 12px; text-align: center; }
 
 /* ------------------------------------------------------- avisos e diálogos */
+
+.firewall {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: #3a2f1c;
+  border-bottom: 1px solid var(--warn);
+  color: var(--text);
+  font-size: 13px;
+}
+.firewall[hidden] { display: none; }
+.firewall > span:nth-child(2) { flex: 1; line-height: 1.4; }
+.participant .firewall { margin-top: 12px; border: 1px solid var(--warn); border-radius: var(--radius); }
 
 .toast {
   position: fixed;

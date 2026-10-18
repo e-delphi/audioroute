@@ -10,7 +10,7 @@
 
 use std::collections::HashMap;
 use std::io::{self, BufReader};
-use std::net::{IpAddr, Shutdown, SocketAddr, TcpStream};
+use std::net::{IpAddr, Shutdown, SocketAddr, TcpStream, ToSocketAddrs};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
@@ -36,8 +36,9 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 pub struct ParticipantOptions {
     /// Buffer dos cabos de reprodução, em ms.
     pub buffer_ms: u32,
-    /// Endereço fixo do controlador. `None`: descobrir na rede.
-    pub controller: Option<SocketAddr>,
+    /// Endereço do controlador digitado pelo usuário ("192.168.0.10",
+    /// "SALA-PC" ou com porta, "192.168.0.10:47801"). `None`: descobrir na rede.
+    pub controller: Option<String>,
 }
 
 impl Default for ParticipantOptions {
@@ -50,8 +51,11 @@ impl Default for ParticipantOptions {
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ParticipantStatus {
-    /// "searching", "connected" ou "error".
+    /// "searching" (procurando sozinho), "connecting" (tentando o endereço
+    /// digitado), "connected" ou "error".
     pub state: String,
+    /// Endereço digitado, se houver (senão a busca é automática).
+    pub manual: Option<String>,
     pub controller: Option<String>,
     pub address: Option<String>,
     /// Streams abertos agora a pedido do controlador.
@@ -70,6 +74,8 @@ struct Inner {
     stop: AtomicBool,
     /// Conexão atual (para o shutdown poder interrompê-la).
     conn: Mutex<Option<TcpStream>>,
+    /// Endereço digitado; `None`: busca automática.
+    target: Mutex<Option<String>>,
 }
 
 impl Participant {
@@ -81,6 +87,7 @@ impl Participant {
             status: Mutex::new(ParticipantStatus { state: "searching".into(), ..Default::default() }),
             stop: AtomicBool::new(false),
             conn: Mutex::new(None),
+            target: Mutex::new(opts.controller.clone()),
         });
         let me = inner.clone();
         std::thread::Builder::new()
@@ -92,6 +99,18 @@ impl Participant {
 
     pub fn status(&self) -> ParticipantStatus {
         lock(&self.inner.status).clone()
+    }
+
+    /// Troca o controlador: um endereço digitado ou `None` para voltar à busca
+    /// automática. Se mudou, a conexão atual cai e a próxima tentativa já usa
+    /// o novo.
+    pub fn set_controller(&self, address: Option<String>) {
+        let address = address.map(|a| a.trim().to_owned()).filter(|a| !a.is_empty());
+        let changed = *lock(&self.inner.target) != address;
+        *lock(&self.inner.target) = address;
+        if changed && let Some(c) = lock(&self.inner.conn).as_ref() {
+            let _ = c.shutdown(Shutdown::Both);
+        }
     }
 
     /// Desconecta e para de procurar.
@@ -111,39 +130,100 @@ fn main_loop<B>(inner: &Arc<Inner>, backend: B, machine_id: &str, name: &str, op
 where
     B: DeviceLister + StreamOpener + Clone + Send + 'static,
 {
-    let discovery = match opts.controller {
-        Some(_) => None,
-        None => match Discovery::listen() {
-            Ok(d) => Some(d),
-            Err(e) => {
-                set_status(inner, |s| {
-                    s.state = "error".into();
-                    s.error = Some(format!("não foi possível escutar a rede (porta {}): {e}", message::DISCOVERY_PORT));
-                });
-                return;
-            }
-        },
-    };
+    // Só abre a porta de descoberta quando a busca automática é usada.
+    let mut discovery: Option<Discovery> = None;
+    // Por que a última tentativa falhou (continua visível enquanto tenta de novo).
+    let mut last_error: Option<String> = None;
 
     while !inner.stop.load(Ordering::SeqCst) {
-        set_status(inner, |s| *s = ParticipantStatus { state: "searching".into(), ..Default::default() });
-        let addr = match (&discovery, opts.controller) {
-            (_, Some(addr)) => addr,
-            (Some(d), None) => match d.next(Duration::from_millis(500)) {
-                Some((_, addr)) => addr,
-                None => continue,
-            },
-            (None, None) => unreachable!(),
+        let target = lock(&inner.target).clone();
+        let addr = match &target {
+            Some(text) => {
+                set_status(inner, |s| {
+                    *s = ParticipantStatus {
+                        state: "connecting".into(),
+                        manual: target.clone(),
+                        error: last_error.clone(),
+                        ..Default::default()
+                    }
+                });
+                match resolve(text) {
+                    Ok(addr) => addr,
+                    Err(e) => {
+                        last_error = Some(format!("endereço \"{text}\" inválido: {e}"));
+                        std::thread::sleep(RETRY_DELAY);
+                        continue;
+                    }
+                }
+            }
+            None => {
+                if discovery.is_none() {
+                    match Discovery::listen() {
+                        Ok(d) => discovery = Some(d),
+                        Err(e) => {
+                            set_status(inner, |s| {
+                                *s = ParticipantStatus {
+                                    state: "error".into(),
+                                    error: Some(format!(
+                                        "não foi possível escutar a rede (porta {}): {e}. Digite o endereço do controlador.",
+                                        message::DISCOVERY_PORT
+                                    )),
+                                    ..Default::default()
+                                }
+                            });
+                            std::thread::sleep(RETRY_DELAY);
+                            continue;
+                        }
+                    }
+                }
+                set_status(inner, |s| {
+                    *s = ParticipantStatus { state: "searching".into(), error: last_error.clone(), ..Default::default() }
+                });
+                match discovery.as_ref().and_then(|d| d.next(Duration::from_millis(500))) {
+                    Some((_, addr)) => addr,
+                    None => continue,
+                }
+            }
         };
-        if let Ok(stream) = TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT) {
-            let error = run_session(inner, &backend, machine_id, name, opts, stream).err();
-            set_status(inner, |s| s.error = error.map(|e| e.to_string()));
-        }
+        last_error = match TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT) {
+            Ok(stream) => run_session(inner, &backend, machine_id, name, opts, stream).err().map(|e| e.to_string()),
+            Err(e) => Some(connect_error(addr, &e)),
+        };
         *lock(&inner.conn) = None;
         if !inner.stop.load(Ordering::SeqCst) {
             std::thread::sleep(RETRY_DELAY);
         }
     }
+}
+
+/// Explica a falha de conexão com o que costuma ser a causa.
+fn connect_error(addr: SocketAddr, e: &io::Error) -> String {
+    match e.kind() {
+        io::ErrorKind::TimedOut => format!(
+            "{addr} não respondeu: o firewall do controlador pode estar bloqueando, ou o endereço está errado"
+        ),
+        io::ErrorKind::ConnectionRefused => {
+            format!("{addr} recusou a conexão: o audioroute está aberto lá como Controlador principal?")
+        }
+        _ => format!("não conectou em {addr}: {e}"),
+    }
+}
+
+/// "192.168.0.10", "192.168.0.10:47801", "SALA-PC" ou "SALA-PC:47801" →
+/// endereço de controle (sem porta: a padrão). Prefere IPv4.
+pub fn resolve(text: &str) -> io::Result<SocketAddr> {
+    let text = text.trim();
+    let addrs: Vec<SocketAddr> = match text.parse::<SocketAddr>() {
+        Ok(addr) => vec![addr],
+        Err(_) if text.contains(':') && !text.contains("::") => text.to_socket_addrs()?.collect(),
+        Err(_) => (text, message::CONTROL_PORT).to_socket_addrs()?.collect(),
+    };
+    addrs
+        .iter()
+        .find(|a| a.is_ipv4())
+        .or(addrs.first())
+        .copied()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "nome não encontrado na rede"))
 }
 
 /// Estado de uma conexão com o controlador.
@@ -209,6 +289,7 @@ where
         s.state = "connected".into();
         s.controller = Some(controller);
         s.address = Some(peer.ip().to_string());
+        s.error = None;
     });
 
     let opener = SourceOpener { local: backend.clone(), audio: audio.clone(), peer: peer.ip() };

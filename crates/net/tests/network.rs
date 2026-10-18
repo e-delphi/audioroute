@@ -128,7 +128,7 @@ fn audio_flows_both_ways_and_disconnect_is_detected() {
         remote.clone(),
         "m2".into(),
         "NOTEBOOK".into(),
-        ParticipantOptions { buffer_ms: 30, controller: Some(([127, 0, 0, 1], hub.control_port()).into()) },
+        ParticipantOptions { buffer_ms: 30, controller: Some(format!("127.0.0.1:{}", hub.control_port())) },
     );
 
     wait_until("participante conectar", || hub.devices().len() == 2);
@@ -168,6 +168,37 @@ fn audio_flows_both_ways_and_disconnect_is_detected() {
 }
 
 #[test]
+fn manual_address_can_be_changed_while_running() {
+    let hub = NetHub::start("C".into(), "m1".into(), HubOptions { control_port: 0, announce: false }).unwrap();
+    // Começa apontando para uma porta onde não há ninguém.
+    let participant = Participant::start(
+        Fake::new(0x100, 0x101),
+        "m2".into(),
+        "P".into(),
+        ParticipantOptions { buffer_ms: 30, controller: Some("127.0.0.1:1".into()) },
+    );
+    wait_until("mostrar o erro", || participant.status().error.is_some());
+    assert_eq!(participant.status().state, "connecting");
+    assert_eq!(participant.status().manual.as_deref(), Some("127.0.0.1:1"));
+
+    participant.set_controller(Some(format!("127.0.0.1:{}", hub.control_port())));
+    wait_until("conectar no endereço novo", || participant.status().state == "connected");
+    assert_eq!(participant.status().error, None);
+    assert_eq!(hub.devices().len(), 2);
+    participant.shutdown();
+    hub.shutdown();
+}
+
+#[test]
+fn resolves_addresses_with_and_without_port() {
+    use audioroute_net::{message::CONTROL_PORT, resolve};
+    assert_eq!(resolve("192.168.0.10").unwrap(), ([192, 168, 0, 10], CONTROL_PORT).into());
+    assert_eq!(resolve(" 10.0.0.2:5000 ").unwrap(), ([10, 0, 0, 2], 5000).into());
+    assert_eq!(resolve("localhost").unwrap().port(), CONTROL_PORT);
+    assert!(resolve("nome-que-nao-existe.invalid").is_err());
+}
+
+#[test]
 fn open_fails_cleanly_when_the_participant_refuses() {
     #[derive(Clone)]
     struct Refuses(Fake);
@@ -191,7 +222,7 @@ fn open_fails_cleanly_when_the_participant_refuses() {
         Refuses(Fake::new(0x100, 0x101)),
         "m2".into(),
         "P".into(),
-        ParticipantOptions { buffer_ms: 30, controller: Some(([127, 0, 0, 1], hub.control_port()).into()) },
+        ParticipantOptions { buffer_ms: 30, controller: Some(format!("127.0.0.1:{}", hub.control_port())) },
     );
     wait_until("participante conectar", || hub.devices().len() == 2);
     let err = hub

@@ -76,10 +76,16 @@ const Api = {
   /** Um cabo ligou ou caiu sozinho, ou um dispositivo foi plugado/desplugado. */
   onChanged: (cb) => Bridge.on('changed', () => cb()),
   /**
-   * Estado da rede: { role: 'controller', peers: [{ name, address, devices }] }
-   * ou { role: 'participant', status: { state, controller, address, streams, error } }.
+   * Estado da rede: { role: 'controller', peers: [{ name, address, devices }], address, port }
+   * ou { role: 'participant', status: { state, manual, controller, address, streams, error } }.
    */
   network: () => Bridge.call('network'),
+  /** Firewall do Windows: { ok, network, problem }. */
+  firewall: () => Bridge.call('firewall'),
+  /** Libera o audioroute no firewall (o Windows pede administrador). */
+  allowFirewall: () => Bridge.call('allow_firewall'),
+  /** Participante: endereço do controlador digitado (null: busca automática). */
+  setControllerAddress: (address) => Bridge.call('set_controller_address', { address }),
   /** O mesmo, 1 vez por segundo. */
   onNetwork: (cb) => Bridge.on('network', cb),
 }

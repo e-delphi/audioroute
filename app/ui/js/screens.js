@@ -20,6 +20,40 @@ function switchRoleButton(onReset, confirmText) {
   )
 }
 
+/**
+ * Aviso do Firewall do Windows: aparece só quando ele está barrando o
+ * audioroute na rede atual, com um botão para liberar.
+ */
+function firewallBanner(consequence) {
+  const text = h('span')
+  const allow = h('button', { class: 'primary' }, 'Liberar no firewall')
+  const again = h('button', null, 'Verificar de novo')
+  const banner = h('div', { class: 'firewall', hidden: true }, h('span', { class: 'icon' }, '🛡️'), text, allow, again)
+
+  function show(s) {
+    banner.hidden = !s || s.ok
+    if (s && !s.ok) text.textContent = `Firewall do Windows: ${s.problem}. ${consequence}`
+  }
+  async function check() {
+    show(await Api.firewall().catch(() => null))
+  }
+  allow.addEventListener('click', async () => {
+    allow.disabled = true
+    allow.textContent = 'Aguardando a confirmação do Windows…'
+    try {
+      show(await Api.allowFirewall())
+    } catch (e) {
+      Toast.show(e)
+    } finally {
+      allow.disabled = false
+      allow.textContent = 'Liberar no firewall'
+    }
+  })
+  again.addEventListener('click', check)
+  check()
+  return banner
+}
+
 const RoleSelect = {
   /** onChosen(role) quando o papel foi aceito pelo backend. */
   mount(root, onChosen) {
@@ -83,6 +117,19 @@ const Participant = {
     const outputs = h('ul')
     const error = h('p', { class: 'error' })
     const status = h('span', { class: 'status' })
+    const netError = h('small', { class: 'net-error' })
+    const address = h('input', { type: 'text', placeholder: 'Automático (procura na rede)', spellcheck: 'false' })
+    const connectButton = h('button', { class: 'primary', onClick: () => setAddress(address.value) }, 'Conectar')
+    const autoButton = h('button', { onClick: () => ((address.value = ''), setAddress(null)) }, 'Automático')
+    address.addEventListener('keydown', (e) => e.key === 'Enter' && setAddress(address.value))
+
+    async function setAddress(value) {
+      try {
+        renderStatus(await Api.setControllerAddress(value && value.trim() ? value.trim() : null))
+      } catch (e) {
+        Toast.show(e)
+      }
+    }
     const item = (d, color) =>
       h(
         'li',
@@ -102,6 +149,19 @@ const Participant = {
           status,
           switchRoleButton(onReset),
         ),
+        h(
+          'section',
+          { class: 'connect' },
+          h('label', { class: 'field' }, h('span', null, 'Controlador principal'), h('div', { class: 'row' }, address, connectButton, autoButton)),
+          h(
+            'small',
+            null,
+            'Se ele não aparecer sozinho (algumas redes bloqueiam a busca automática), digite o endereço que aparece ',
+            'no topo da tela do controlador, como 192.168.0.10.',
+          ),
+          netError,
+        ),
+        firewallBanner('O controlador não vai conseguir mandar o áudio para este computador.'),
         h(
           'p',
           { class: 'note' },
@@ -124,11 +184,20 @@ const Participant = {
       })
       .catch((e) => (error.textContent = String(e)))
 
+    let addressLoaded = false
     function renderStatus(net) {
       const s = net?.status
+      // O endereço salvo entra no campo uma vez; depois o campo é do usuário.
+      if (s && !addressLoaded) {
+        addressLoaded = true
+        address.value = s.manual || ''
+      }
+      netError.textContent = s && s.state !== 'connected' && s.error ? `Última tentativa: ${s.error}` : ''
       status.className = 'status'
       if (!s || s.state === 'searching') {
         status.textContent = '⏳ Procurando o controlador principal na rede…'
+      } else if (s.state === 'connecting') {
+        status.textContent = `⏳ Conectando a ${s.manual}…`
       } else if (s.state === 'connected') {
         status.classList.add('ok')
         const using = s.streams ? ` · ${s.streams} em uso` : ''
