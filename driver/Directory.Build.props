@@ -1,0 +1,13 @@
+<Project>
+  <!--
+    O toolset do WDK acha o kit pelo registro (KitsRoot10 da visão de 64 bits).
+    Em algumas máquinas esse valor aponta para "C:\Program Files\Windows Kits\10",
+    onde só há o App Certification Kit, e o build não encontra portcls.h. Aqui o
+    kit é procurado onde os cabeçalhos de kernel existem de fato.
+  -->
+  <PropertyGroup Condition="'$(WDKContentRoot)' == ''">
+    <_AudiorouteKits>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Kits\Installed Roots@KitsRoot10)</_AudiorouteKits>
+    <_AudiorouteKits32>$(Registry:HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Microsoft\Windows Kits\Installed Roots@KitsRoot10)</_AudiorouteKits32>
+    <WDKContentRoot Condition="!Exists('$(_AudiorouteKits)build') And Exists('$(_AudiorouteKits32)build')">$(_AudiorouteKits32)</WDKContentRoot>
+  </PropertyGroup>
+</Project>

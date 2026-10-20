@@ -45,6 +45,7 @@ crates/cli       audioroute-cli --list / --probe / --measure / config.json
 app/ui           interface: HTML, CSS e JS puros, embutidos no exe
 app/host         janela Win32 + WebView2, bandeja, ponte JSON (exe audioroute)
 release/         audioroute.exe (app final, sem instalador)
+driver/          alto-falante e microfone virtuais (WDK, C++); plano em driver/README.md
 ```
 
 ## config.json

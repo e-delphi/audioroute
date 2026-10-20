@@ -1,0 +1,6 @@
+# Saídas do MSBuild/WDK
+x64/
+Source/*/x64/
+out/
+.vs/
+*.user
