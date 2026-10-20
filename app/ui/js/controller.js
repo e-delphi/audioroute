@@ -21,6 +21,7 @@ const Controller = {
       showLoopbacks: true,
       selection: null, // { kind: 'device' | 'cable', id }
       fitted: false,
+      virtual: null, // { speaker, mic }: nós do driver do audioroute
     }
 
     // ---- elementos ----
@@ -64,7 +65,12 @@ const Controller = {
     // ---- dados derivados ----
 
     const byId = () => new Map(state.devices.map((d) => [d.id, d]))
-    const windowsOutput = () => state.devices.find((d) => d.kind === 'output' && d.isDefault && d.available && !d.node)
+    const isVirtualSpeaker = (d) => !!d && d.id === state.virtual?.speaker
+    const isVirtual = (d) => !!d && (d.id === state.virtual?.speaker || d.id === state.virtual?.mic)
+    // A saída do Windows: uma saída deste computador, ou o alto-falante
+    // virtual (aí o som dos programas entra no canvas por ele).
+    const windowsOutput = () =>
+      state.devices.find((d) => d.isDefault && d.available && !d.node && (d.kind === 'output' || isVirtualSpeaker(d)))
     const nameOf = (id) => byId().get(id)?.name ?? id
 
     function visibleDevices() {
@@ -79,7 +85,10 @@ const Controller = {
       const variant = d.loopback ? 'loopback' : d.kind === 'output' ? 'output' : 'input'
       const icon = { input: '🎤', output: '🔊', loopback: '🔁' }[variant]
       const subtitle =
-        d.description || { input: 'Entrada', output: 'Saída', loopback: 'Captura o que toca nesta saída' }[variant]
+        d.description ||
+        (isVirtualSpeaker(d) && 'Os programas tocam nele; entra aqui') ||
+        (isVirtual(d) && 'Sai como microfone nos programas') ||
+        { input: 'Entrada', output: 'Saída', loopback: 'Captura o que toca nesta saída' }[variant]
       const selected = state.selection?.kind === 'device' && state.selection.id === d.id
       return h(
         'div',
@@ -97,7 +106,8 @@ const Controller = {
           'div',
           { class: 'badges' },
           d.node && h('span', { class: 'badge node', title: `Dispositivo do computador ${d.node}, pela rede` }, `💻 ${d.node}`),
-          d.isDefault && h('span', { class: 'badge' }, 'padrão'),
+          isVirtual(d) && h('span', { class: 'badge virtual', title: 'Dispositivo virtual do driver do audioroute' }, 'virtual'),
+          d.isDefault && h('span', { class: 'badge', title: isVirtualSpeaker(d) ? 'O Windows toca nele' : '' }, 'padrão'),
           d.mode === 'exclusive' && h('span', { class: 'badge exclusive' }, 'exclusivo'),
           d.stream && h('span', { class: 'badge', title: d.stream.format }, `${d.stream.periodMs.toFixed(1)} ms`),
           d.delayMs > 0 && h('span', { class: 'badge delay' }, `+${d.delayMs} ms`),
@@ -183,7 +193,7 @@ const Controller = {
 
     function canConnect(source, target) {
       const to = byId().get(target)
-      if (source === WINDOWS) return to?.kind === 'output' && !to.node
+      if (source === WINDOWS) return (to?.kind === 'output' && !to.node) || isVirtualSpeaker(to)
       const from = byId().get(source)
       return !!from && !!to && from.kind === 'input' && to.kind === 'output'
     }
@@ -368,7 +378,10 @@ const Controller = {
     window.addEventListener('keydown', onKey)
     Levels.start()
 
-    Api.loadLayout()
+    Api.virtualDevices()
+      .then((v) => (state.virtual = v))
+      .catch(() => {})
+      .then(() => Api.loadLayout())
       .then((layout) => (state.layout = layout || {}))
       .catch(Toast.show)
       .then(() => reload())

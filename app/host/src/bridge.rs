@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 use audioroute_control::Service;
 use audioroute_core::{DeviceLister, IdGenerator};
 use audioroute_net::{HubOptions, NetBackend, NetHub, Participant, ParticipantOptions};
+use audioroute_virtual::VirtualBackend;
 use audioroute_wasapi::{SystemMeter, WasapiBackend};
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -28,14 +29,17 @@ const TICK_INTERVAL: Duration = Duration::from_secs(1);
 /// sistema, dispositivos plugados e saída padrão trocada fora do app).
 const ENDPOINTS_INTERVAL: Duration = Duration::from_secs(3);
 
-/// Dispositivos deste computador + os dos participantes da rede.
-type Backend = NetBackend<WasapiBackend>;
+/// Dispositivos deste computador (WASAPI + virtuais do driver) e os dos
+/// participantes da rede.
+type Backend = NetBackend<VirtualBackend<WasapiBackend>>;
 
 #[derive(Default)]
 struct Inner {
     role: Option<String>,
     /// Só os dispositivos deste computador.
     backend: Option<WasapiBackend>,
+    /// Alto-falante e microfone virtuais (driver do audioroute).
+    virt: Option<VirtualBackend<WasapiBackend>>,
     service: Option<Service<Backend>>,
     /// Controlador: aceita os participantes da rede.
     hub: Option<NetHub>,
@@ -54,6 +58,7 @@ impl Inner {
             p.shutdown();
         }
         self.backend = None;
+        self.virt = None;
         self.role = None;
     }
 
@@ -200,6 +205,10 @@ fn handle(cmd: &str, args: &Value) -> CmdResult {
             Ok(Value::Null)
         }
         "network" => Ok(st.lock().network()),
+        "virtual_devices" => Ok(match &st.lock().virt {
+            Some(v) => json!({ "speaker": v.speaker_id().to_string(), "mic": v.mic_id().to_string() }),
+            None => Value::Null,
+        }),
         "firewall" => to_value(crate::firewall::status()),
         "allow_firewall" => to_value(crate::firewall::allow()?),
         "set_controller_address" => {
@@ -288,11 +297,14 @@ fn set_role(st: &AppState, role: &str) -> Result<(), String> {
     }
     let machine_id = audioroute_wasapi::machine_id().map_err(|e| e.to_string())?;
     let backend = WasapiBackend::new(IdGenerator::new(machine_id.clone()));
+    let machine_id_for_ids = machine_id.clone();
     if role == "controller" {
         let hub = NetHub::start(computer_name(), machine_id, HubOptions::default())
             .map_err(|e| format!("não foi possível abrir a rede: {e}"))?;
         let path = data_dir()?.join("config.json");
-        let net = NetBackend { local: backend.clone(), hub: hub.clone() };
+        let virt = VirtualBackend::new(backend.clone(), &IdGenerator::new(machine_id_for_ids.clone()));
+        let net = NetBackend { local: virt.clone(), hub: hub.clone() };
+        inner.virt = Some(virt);
         match Service::open(net, path) {
             Ok(service) => inner.service = Some(service),
             Err(e) => {
@@ -315,6 +327,7 @@ fn set_role(st: &AppState, role: &str) -> Result<(), String> {
 fn set_windows_output(st: &AppState, id: &str) -> Result<(), String> {
     let mut inner = st.lock();
     let backend = inner.backend.clone().ok_or("escolha um papel na tela inicial primeiro")?;
+    let inner_virt = inner.virt.clone();
     let service = service(&mut inner)?;
     let device = service
         .devices()
@@ -330,7 +343,12 @@ fn set_windows_output(st: &AppState, id: &str) -> Result<(), String> {
             device.name
         ));
     }
-    let uuid = Uuid::parse_str(id).map_err(|e| e.to_string())?;
+    let mut uuid = Uuid::parse_str(id).map_err(|e| e.to_string())?;
+    // Cabo do Windows até a entrada "Alto-falantes (audioroute)": o padrão do
+    // Windows vira o alto-falante virtual, e o som dos programas entra no canvas.
+    if let Some(virt) = inner_virt.as_ref().filter(|v| v.speaker_id() == uuid) {
+        uuid = virt.windows_speaker().ok_or("o alto-falante virtual não está no Windows")?;
+    }
     backend.set_default_output(uuid).map_err(|e| e.to_string())?;
     service.refresh().map_err(|e| e.to_string())
 }

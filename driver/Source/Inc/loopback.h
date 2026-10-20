@@ -6,13 +6,17 @@ Module Name:
 
 Abstract:
 
-    Cabo interno do audioroute: o que toca no alto-falante virtual sai no
-    microfone virtual.
+    Anéis de áudio do audioroute (48 kHz, estéreo, inteiro de 32 bits):
 
-    O alto-falante escreve num anel de memória (48 kHz, estéreo, inteiro de
-    32 bits); cada stream do microfone lê dele com a sua própria posição.
-    Os dois andam pelo mesmo relógio (o timer do sistema), então não há
-    drift entre eles: só é preciso uma folga pequena para os ticks não se
+    - anel do alto-falante: o alto-falante virtual escreve; o microfone
+      virtual (cabo interno) e o app leem;
+    - anel do microfone: o app escreve; o microfone virtual lê.
+
+    Sem o app conectado, o microfone lê do anel do alto-falante (cabo
+    interno); com o app, lê do anel do microfone.
+
+    Tudo anda pelo mesmo relógio (o timer do sistema), então não há drift
+    entre quem escreve e quem lê: só uma folga pequena para os ticks não se
     atropelarem.
 
 --*/
@@ -20,18 +24,25 @@ Abstract:
 #ifndef _AUDIOROUTE_LOOPBACK_H_
 #define _AUDIOROUTE_LOOPBACK_H_
 
-// Posição de leitura de um stream do microfone.
+// Posição de quem lê um anel.
 typedef struct _LOOPBACK_READER
 {
     ULONGLONG   Position;   // próximo frame a ler (contagem desde o início)
-    BOOLEAN     Started;    // já sincronizou com o alto-falante
-    BOOLEAN     Priming;    // esperando juntar a folga antes de tocar
+    PVOID       Source;     // anel de onde lê (se mudar, ressincroniza)
+    BOOLEAN     Started;    // já sincronizou com quem escreve
+    BOOLEAN     Priming;    // esperando juntar a folga antes de entregar som
 } LOOPBACK_READER, *PLOOPBACK_READER;
 
-// Alto-falante → anel. Data: PCM 16 bits, estéreo.
+// Alto-falante virtual → anel do alto-falante. Data: PCM 16 bits, estéreo.
 VOID LoopbackWriteRender16(_In_reads_bytes_(Bytes) const BYTE* Data, _In_ ULONG Bytes);
 
-// Anel → microfone. Data: PCM 32 bits, estéreo. Sem som no anel: silêncio.
+// Microfone virtual ← anel do microfone (app conectado) ou do alto-falante.
+// Data: PCM 32 bits, estéreo. Sem som: silêncio.
 VOID LoopbackReadCapture32(_Inout_ PLOOPBACK_READER Reader, _Out_writes_bytes_(Bytes) BYTE* Data, _In_ ULONG Bytes);
+
+// App (via \\.\audioroute, ver control.cpp).
+VOID LoopbackAppConnected(_In_ BOOLEAN Connected);
+VOID LoopbackAppReadSpeaker(_Out_writes_bytes_(Bytes) BYTE* Data, _In_ ULONG Bytes);
+VOID LoopbackAppWriteMic(_In_reads_bytes_(Bytes) const BYTE* Data, _In_ ULONG Bytes);
 
 #endif // _AUDIOROUTE_LOOPBACK_H_

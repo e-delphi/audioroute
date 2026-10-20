@@ -31,7 +31,8 @@ fn start() -> Result<()> {
     };
 
     if has("list") {
-        let devices = backend()?.list()?;
+        // --raw: como o Windows vê (sem juntar os virtuais do driver).
+        let devices = if has("raw") { backend()?.list()? } else { local_backend()?.list()? };
         if has("json") { print_json(&devices) } else { print_table(&devices) };
         return Ok(());
     }
@@ -54,12 +55,12 @@ fn start() -> Result<()> {
     let duration = value("duration").map(|s| s.parse::<u64>()).transpose().context("--duration em segundos")?;
     if let Some(path) = args.iter().find(|a| !a.starts_with('-') && Some(*a) != value("duration")) {
         if has("check") {
-            return run::check(&backend()?, path);
+            return run::check(&local_backend()?, path);
         }
-        return run::run(backend()?, path, duration.map(std::time::Duration::from_secs));
+        return run::run(local_backend()?, path, duration.map(std::time::Duration::from_secs));
     }
     eprintln!(
-        "Uso:\n  audioroute-cli --list [--json]\n  audioroute-cli --probe\n  audioroute-cli config.json --check\n  audioroute-cli config.json [--duration SEGUNDOS]"
+        "Uso:\n  audioroute-cli --list [--json] [--raw]\n  audioroute-cli --probe\n  audioroute-cli config.json --check\n  audioroute-cli config.json [--duration SEGUNDOS]"
     );
     Ok(())
 }
@@ -67,6 +68,13 @@ fn start() -> Result<()> {
 pub fn backend() -> Result<WasapiBackend> {
     let machine_id = audioroute_wasapi::machine_id().context("lendo MachineGuid")?;
     Ok(WasapiBackend::new(IdGenerator::new(machine_id)))
+}
+
+/// WASAPI + o alto-falante e o microfone virtuais do driver (se instalado).
+pub fn local_backend() -> Result<audioroute_virtual::VirtualBackend<WasapiBackend>> {
+    let machine_id = audioroute_wasapi::machine_id().context("lendo MachineGuid")?;
+    let ids = IdGenerator::new(machine_id);
+    Ok(audioroute_virtual::VirtualBackend::new(WasapiBackend::new(ids.clone()), &ids))
 }
 
 fn print_table(devices: &[DeviceInfo]) {

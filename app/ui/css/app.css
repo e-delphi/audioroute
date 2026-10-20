@@ -321,6 +321,7 @@ textarea { resize: vertical; }
 .badge.exclusive { color: var(--loopback); border-color: var(--loopback); }
 .badge.off { color: var(--danger); }
 .badge.node { color: var(--input); border-color: var(--input); }
+.badge.virtual { color: var(--warn); border-color: var(--warn); }
 
 /* ---------------------------------------------------------- painéis laterais */
 

@@ -6,14 +6,13 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result};
 use audioroute_core::config::Config;
 use audioroute_core::engine::RouteSpec;
-use audioroute_core::{DeviceKind, DeviceLister, Engine, StreamRequest};
-use audioroute_wasapi::WasapiBackend;
+use audioroute_core::{DeviceKind, DeviceLister, Engine, StreamOpener, StreamRequest};
 use uuid::Uuid;
 
 const STATS_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Só carrega, religa e valida o config, sem abrir dispositivo nenhum.
-pub fn check(backend: &WasapiBackend, path: &str) -> Result<()> {
+pub fn check(backend: &impl DeviceLister, path: &str) -> Result<()> {
     let mut cfg = Config::load(path).with_context(|| path.to_string())?;
     let devices = backend.list()?;
     for r in cfg.rebind_missing(&devices) {
@@ -30,7 +29,7 @@ pub fn check(backend: &WasapiBackend, path: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn run(backend: WasapiBackend, path: &str, duration: Option<Duration>) -> Result<()> {
+pub fn run<B: DeviceLister + StreamOpener + 'static>(backend: B, path: &str, duration: Option<Duration>) -> Result<()> {
     let mut cfg = Config::load(path).with_context(|| path.to_string())?;
     let devices = backend.list()?;
     for r in cfg.rebind_missing(&devices) {

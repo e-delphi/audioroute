@@ -80,6 +80,8 @@ const Api = {
    * ou { role: 'participant', status: { state, manual, controller, address, streams, error } }.
    */
   network: () => Bridge.call('network'),
+  /** Ids dos virtuais do driver: { speaker, mic }, ou null sem o driver. */
+  virtualDevices: () => Bridge.call('virtual_devices'),
   /** Firewall do Windows: { ok, network, problem }. */
   firewall: () => Bridge.call('firewall'),
   /** Libera o audioroute no firewall (o Windows pede administrador). */

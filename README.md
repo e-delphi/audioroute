@@ -79,6 +79,7 @@ crates/net       rede: descoberta, controle por TCP, áudio por UDP
 crates/cli       audioroute-cli: --list, --probe, --measure, rodar um config.json
 app/host         janela Win32 + WebView2, bandeja e ponte com a interface
 app/ui           interface (canvas)
+crates/virtual   alto-falante e microfone virtuais no canvas (fala com o driver)
 driver/          alto-falante e microfone virtuais (driver de kernel, em desenvolvimento)
 ```
 

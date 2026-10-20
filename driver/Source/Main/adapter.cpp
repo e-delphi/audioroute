@@ -22,6 +22,7 @@ Abstract:
 #include "definitions.h"
 #include "endpoints.h"
 #include "minipairs.h"
+#include "control.h"
 
 typedef void (*fnPcDriverUnload) (PDRIVER_OBJECT);
 fnPcDriverUnload gPCDriverUnloadRoutine = NULL;
@@ -341,6 +342,11 @@ Return Value:
     DriverObject->MajorFunction[IRP_MJ_PNP] = PnpHandler;
 
     //
+    // audioroute: \\.\audioroute para o app (o resto segue para o PortCls).
+    //
+    ControlHookDispatch(DriverObject);
+
+    //
     // Hook the port class unload function
     //
     gPCDriverUnloadRoutine = DriverObject->DriverUnload;
@@ -424,6 +430,13 @@ Return Value:
             maxObjects,
             0
         );
+
+    // audioroute: canal com o app. Sem ele os dispositivos virtuais ainda
+    // funcionam (cabo interno), então uma falha aqui não impede o áudio.
+    if (NT_SUCCESS(ntStatus))
+    {
+        ControlCreate(DriverObject);
+    }
 
     return ntStatus;
 } // AddDevice
@@ -821,6 +834,10 @@ Return Value:
     case IRP_MN_REMOVE_DEVICE:
     case IRP_MN_SURPRISE_REMOVAL:
     case IRP_MN_STOP_DEVICE:
+        if (stack->MinorFunction == IRP_MN_REMOVE_DEVICE)
+        {
+            ControlDelete();
+        }
         ext = static_cast<PortClassDeviceContext*>(_DeviceObject->DeviceExtension);
 
         if (ext->m_pCommon != NULL)

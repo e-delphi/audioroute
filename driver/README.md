@@ -19,9 +19,9 @@ controla nomes, quantidade e latência, e o áudio não passa por um "cabo" extr
 
 - Driver de kernel **WaveRT/PortCls** em C++, partindo do exemplo oficial da Microsoft
   (`SimpleAudioSample`, licença MS-PL), o mesmo modelo de drivers de áudio virtuais conhecidos.
-- O áudio entre o driver e o app passa por memória compartilhada (anel), com um controle por IOCTL
-  para o audioroute abrir, ler e escrever. Formato fixo: 48 kHz, estéreo, f32 — o mesmo do motor.
-- Sem o app aberto, o alto-falante descarta o som e o microfone entrega silêncio.
+- O app abre `\\.\audioroute` e troca áudio com o driver por IOCTL (ler o alto-falante, escrever no
+  microfone), em blocos de 5 ms, no formato 48 kHz, estéreo, inteiro de 32 bits.
+- Sem o app conectado, o microfone toca o que o alto-falante recebe (cabo interno).
 
 ## Etapas
 
@@ -31,7 +31,7 @@ controla nomes, quantidade e latência, e o áudio não passa por um "cabo" extr
 | 1 ✅ | Exemplo da Microsoft compilando sem mudanças | aparece um alto-falante e um microfone de teste |
 | 2 ✅ | Nomes, IDs e INF próprios: `ROOT\audioroute`, "Alto-falantes (audioroute)", "Microfone (audioroute)" | dispositivos com a nossa identidade |
 | 3 ✅ | Cabo interno (`Source/Main/loopback.cpp`): o que toca no alto-falante sai no microfone, com 10 ms de folga; medido na VM: 12/12 cliques, latência 40–42 ms (shared) | já substitui o VB-CABLE |
-| 4 | Interface com o app (memória compartilhada + IOCTL) | os virtuais aparecem no canvas do audioroute |
+| 4 ✅ | Interface com o app: `\\.\audioroute` com IOCTLs (`Source/Inc/audioroute_ioctl.h`, `control.cpp`; no app, `crates/virtual`). Medido na VM, Windows → driver → app → driver → Windows: 12/12 cliques, 72–78 ms, 0 falhas | os virtuais aparecem no canvas do audioroute |
 | 5 | Vários pares, nomes configuráveis pelo app | "Microfone para o Discord", "Saída do jogo"… |
 | 6 | Assinatura para distribuir (certificado EV + atestação da Microsoft) | instala em qualquer Windows sem modo de teste |
 

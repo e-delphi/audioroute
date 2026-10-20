@@ -15,6 +15,7 @@ dependencies = [
  "audioroute-control",
  "audioroute-core",
  "audioroute-net",
+ "audioroute-virtual",
  "audioroute-wasapi",
  "embed-resource",
  "serde",
@@ -30,6 +31,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "audioroute-core",
+ "audioroute-virtual",
  "audioroute-wasapi",
  "serde",
  "serde_json",
@@ -64,6 +66,15 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+]
+
+[[package]]
+name = "audioroute-virtual"
+version = "0.1.0"
+dependencies = [
+ "audioroute-core",
+ "uuid",
+ "windows",
 ]
 
 [[package]]

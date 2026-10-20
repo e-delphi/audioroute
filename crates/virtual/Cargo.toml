@@ -1,0 +1,10 @@
+[package]
+name = "audioroute-virtual"
+description = "Alto-falante e microfone virtuais do audioroute (fala com o driver em driver/)"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+audioroute-core.workspace = true
+uuid = "1.28.0"
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_IO"] }
