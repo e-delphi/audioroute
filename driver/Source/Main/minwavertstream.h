@@ -16,6 +16,7 @@ Abstract:
 
 #include "savedata.h"
 #include "ToneGenerator.h"
+#include "loopback.h"
 
 //
 // Structure to store notifications events in a protected list
@@ -113,6 +114,7 @@ protected:
     ULONG                       m_ulContentId;
     CSaveData                   m_SaveData;
     ToneGenerator               m_ToneGenerator;
+    LOOPBACK_READER             m_LoopbackReader;   // microfone: posição no cabo interno
     GUID                        m_SignalProcessingMode;
     BOOLEAN                     m_bEoSReceived;
     BOOLEAN                     m_bLastBufferRendered;

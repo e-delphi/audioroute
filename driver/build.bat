@@ -21,7 +21,10 @@ if not defined MSBUILD (
   exit /b 1
 )
 
-"%MSBUILD%" SimpleAudioSample.sln /p:Configuration=%CONFIG% /p:Platform=x64 /m /nologo /v:minimal
+REM Pacote antigo fora: senao sobram arquivos de versoes anteriores em out\.
+if exist "x64\%CONFIG%\package" rmdir /s /q "x64\%CONFIG%\package"
+
+"%MSBUILD%" audioroute-driver.sln /p:Configuration=%CONFIG% /p:Platform=x64 /m /nologo /v:minimal
 if errorlevel 1 (
   echo [driver] ERRO: o build falhou.
   exit /b 1
@@ -34,6 +37,7 @@ if exist out rmdir /s /q out
 mkdir out
 copy /y "x64\%CONFIG%\package\*" out\ >nul
 copy /y "x64\%CONFIG%\package.cer" out\audioroute-teste.cer >nul
-copy /y vm\*.ps1 out\ >nul
+copy /y vm\instalar.ps1 out\ >nul
+copy /y vm\remover.ps1 out\ >nul
 if defined DEVCON (copy /y "%DEVCON%" out\ >nul) else (echo [driver] AVISO: devcon.exe nao encontrado no WDK.)
 echo [driver] OK: driver\out\ (%CONFIG%) - copie a pasta para a VM e rode instalar.ps1 como administrador

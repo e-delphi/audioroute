@@ -199,6 +199,7 @@ Return Value:
     m_bCapture = FALSE;
     m_ulDmaBufferSize = 0;
     m_pDmaBuffer = NULL;
+    RtlZeroMemory(&m_LoopbackReader, sizeof(m_LoopbackReader));
     m_ulNotificationsPerBuffer = 0;
     m_KsState = KSSTATE_STOP;
     m_pTimer = NULL;
@@ -1195,6 +1196,7 @@ NTSTATUS CMiniportWaveRTStream::SetState
             m_ulLastOsWritePacket = ULONG_MAX;
             m_bEoSReceived = FALSE;
             m_bLastBufferRendered = FALSE;
+            m_LoopbackReader.Started = FALSE;
 
             KeReleaseSpinLock(&m_PositionSpinLock, oldIrql);
 
@@ -1332,7 +1334,7 @@ VOID CMiniportWaveRTStream::UpdatePosition
 
     if (m_bCapture)
     {
-        // Write sine wave to buffer.
+        // Microfone: o que tocou no alto-falante (cabo interno).
         WriteBytes(ByteDisplacement);
     }
     else
@@ -1364,11 +1366,8 @@ VOID CMiniportWaveRTStream::UpdatePosition
             m_bLastBufferRendered = TRUE;
         }
 
-        if (!g_DoNotCreateDataFiles)
-        {
-            // Read from buffer and write to a file.
-            ReadBytes(ByteDisplacement);
-        }
+        // Alto-falante: manda para o cabo interno (e para o arquivo, se ligado).
+        ReadBytes(ByteDisplacement);
     }
     
     // Increment the DMA position by the number of bytes displaced since the last
@@ -1397,7 +1396,7 @@ VOID CMiniportWaveRTStream::WriteBytes
 
 Routine Description:
 
-This function writes the audio buffer using a sine wave generator
+Microfone: preenche o buffer com o que tocou no alto-falante (cabo interno).
 
 Arguments:
 
@@ -1413,7 +1412,7 @@ ByteDisplacement - # of bytes to process.
     {
         ULONG runWrite = min(ByteDisplacement, m_ulDmaBufferSize - bufferOffset);
         
-        m_ToneGenerator.GenerateSine(m_pDmaBuffer + bufferOffset, runWrite);
+        LoopbackReadCapture32(&m_LoopbackReader, m_pDmaBuffer + bufferOffset, runWrite);
            	
         bufferOffset = (bufferOffset + runWrite) % m_ulDmaBufferSize;
         ByteDisplacement -= runWrite;
@@ -1430,7 +1429,7 @@ VOID CMiniportWaveRTStream::ReadBytes
 
 Routine Description:
 
-This function reads the audio buffer and saves the data in a file.
+Alto-falante: manda o buffer para o cabo interno e, se ligado, para um arquivo.
 
 Arguments:
 
@@ -1445,7 +1444,11 @@ ByteDisplacement - # of bytes to process.
     while (ByteDisplacement > 0)
     {
         ULONG runWrite = min(ByteDisplacement, m_ulDmaBufferSize - bufferOffset);
-        m_SaveData.WriteData(m_pDmaBuffer + bufferOffset, runWrite);
+        LoopbackWriteRender16(m_pDmaBuffer + bufferOffset, runWrite);
+        if (!g_DoNotCreateDataFiles)
+        {
+            m_SaveData.WriteData(m_pDmaBuffer + bufferOffset, runWrite);
+        }
         bufferOffset = (bufferOffset + runWrite) % m_ulDmaBufferSize;
         ByteDisplacement -= runWrite;
     }

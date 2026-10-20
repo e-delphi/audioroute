@@ -76,7 +76,7 @@ PCPIN_DESCRIPTOR SpeakerTopoMiniportPins[] =
       KSPIN_DATAFLOW_OUT,                               // DataFlow
       KSPIN_COMMUNICATION_NONE,                         // Communication
       &KSNODETYPE_SPEAKER,                              // Category
-      NULL,                                             // Name
+      NULL,                                             // Name: o Windows usa o da categoria ("Alto-falantes")
       0                                                 // Reserved
     }
   }

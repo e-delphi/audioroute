@@ -5,7 +5,7 @@
 # teste) e pede para reiniciar. Depois de reiniciar, rode de novo.
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
-$hwid = 'ROOT\SimpleAudioSample'
+$hwid = 'ROOT\audioroute'
 
 $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -31,7 +31,17 @@ foreach ($store in 'Root', 'TrustedPublisher') {
   if ($LASTEXITCODE -ne 0) { throw "certutil não conseguiu pôr o certificado em $store ($LASTEXITCODE)" }
 }
 
-$inf = Get-ChildItem *.inf | Select-Object -First 1
+# Versão de teste anterior (o exemplo da Microsoft, sem a nossa identidade).
+if ((.\devcon.exe hwids 'ROOT\SimpleAudioSample') -match 'SimpleAudioSample') {
+  .\devcon.exe remove 'ROOT\SimpleAudioSample' | Out-Null
+  pnputil /enum-drivers | Select-String -Context 1, 0 'simpleaudiosample.inf' | ForEach-Object {
+    $published = ($_.Context.PreContext[0] -split ':\s*')[1]
+    if ($published) { pnputil /delete-driver $published /uninstall /force | Out-Null }
+  }
+  Write-Host 'Removida a versão anterior (Simple Audio Sample).'
+}
+
+$inf = Get-Item (Join-Path $PSScriptRoot 'audioroute.inf')
 $installed = (.\devcon.exe hwids $hwid) -match [regex]::Escape($hwid)
 if ($installed) {
   .\devcon.exe update $inf.FullName $hwid

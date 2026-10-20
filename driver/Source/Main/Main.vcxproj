@@ -179,16 +179,16 @@
     </DriverSign>
   </ItemDefinitionGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <TargetName>SimpleAudioSample</TargetName>
+    <TargetName>audioroute</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
-    <TargetName>SimpleAudioSample</TargetName>
+    <TargetName>audioroute</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <TargetName>SimpleAudioSample</TargetName>
+    <TargetName>audioroute</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
-    <TargetName>SimpleAudioSample</TargetName>
+    <TargetName>audioroute</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Link>
@@ -314,11 +314,12 @@
     <ClCompile Include="adapter.cpp" />
     <ClCompile Include="basetopo.cpp" />
     <ClCompile Include="common.cpp" />
+    <ClCompile Include="loopback.cpp" />
     <ClCompile Include="mintopo.cpp" />
     <ClCompile Include="minwavert.cpp" />
     <ClCompile Include="minwavertstream.cpp" />
     <ClCompile Include="newdelete.cpp" />
-    <ResourceCompile Include="SimpleAudioSample.rc" />
+    <ResourceCompile Include="audioroute.rc" />
   </ItemGroup>
   <ItemGroup>
     <Inf Exclude="@(Inx)" Include="*.inx" />

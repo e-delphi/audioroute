@@ -29,8 +29,8 @@ controla nomes, quantidade e latência, e o áudio não passa por um "cabo" extr
 |---|---|---|
 | 0 ✅ | Ambiente: WDK, bibliotecas Spectre do C++, máquina de teste | compila e instala um driver de exemplo |
 | 1 ✅ | Exemplo da Microsoft compilando sem mudanças | aparece um alto-falante e um microfone de teste |
-| 2 | Nomes, IDs e INF próprios ("audioroute") | dispositivos com a nossa identidade |
-| 3 | Cabo interno: o que toca no alto-falante sai no microfone | já substitui o VB-CABLE |
+| 2 ✅ | Nomes, IDs e INF próprios: `ROOT\audioroute`, "Alto-falantes (audioroute)", "Microfone (audioroute)" | dispositivos com a nossa identidade |
+| 3 ✅ | Cabo interno (`Source/Main/loopback.cpp`): o que toca no alto-falante sai no microfone, com 10 ms de folga; medido na VM: 12/12 cliques, latência 40–42 ms (shared) | já substitui o VB-CABLE |
 | 4 | Interface com o app (memória compartilhada + IOCTL) | os virtuais aparecem no canvas do audioroute |
 | 5 | Vários pares, nomes configuráveis pelo app | "Microfone para o Discord", "Saída do jogo"… |
 | 6 | Assinatura para distribuir (certificado EV + atestação da Microsoft) | instala em qualquer Windows sem modo de teste |
@@ -49,6 +49,10 @@ VM do Hyper-V; o computador principal não muda.
    `C:\audioroute-driver` na VM, sem rede).
 3. Na VM, como administrador: `C:\audioroute-driver\instalar.ps1`. Na 1ª vez liga o modo de teste e
    pede para reiniciar; na 2ª instala. `remover.ps1` desinstala.
+
+Para rodar comandos dentro da VM sem digitar lá: `vm\ponte.ps1` (no computador principal, como
+administrador; pede o login da conta da VM e executa, via PowerShell Direct, cada `.ps1` deixado em
+`%LOCALAPPDATA%\audioroute\ponte-vm`, gravando a saída num `.txt` com o mesmo nome).
 
 `vm\criar-vm.ps1` cria uma VM do zero (Windows 11, Geração 2, TPM) e desliga o Secure Boot depois.
 

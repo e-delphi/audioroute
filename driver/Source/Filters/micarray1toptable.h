@@ -16,10 +16,6 @@ Abstract:
 #define _SIMPLEAUDIOSAMPLE_MICARRAY1TOPTABLE_H_
 
 //
-// {6ae81ff4-203e-4fe1-88aa-f2d57775cd4a}
-DEFINE_GUID(MICARRAY1_CUSTOM_NAME,
-    0x6ae81ff4, 0x203e, 0x4fe1, 0x88, 0xaa, 0xf2, 0xd5, 0x77, 0x75, 0xcd, 0x4a);
-
 //=============================================================================
 static
 KSDATARANGE MicArray1TopoPinDataRangesBridge[] =
@@ -61,8 +57,8 @@ PCPIN_DESCRIPTOR MicArray1TopoMiniportPins[] =
         MicArray1TopoPinDataRangePointersBridge,                   // DataRanges
         KSPIN_DATAFLOW_IN,                            // DataFlow
         KSPIN_COMMUNICATION_NONE,                     // Communication
-        &KSNODETYPE_MICROPHONE_ARRAY,                 // Category
-        &MICARRAY1_CUSTOM_NAME,                       // Name
+        &KSNODETYPE_MICROPHONE,                       // Category: aparece como "Microfone"
+        NULL,                                         // Name: o Windows usa o da categoria
         0                                             // Reserved
       }
     },

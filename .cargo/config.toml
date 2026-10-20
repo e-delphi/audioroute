@@ -1,0 +1,4 @@
+# Runtime do C (vcruntime) embutido nos exe: o audioroute roda num Windows
+# sem o "Visual C++ Redistributable" instalado (ex.: instalações reduzidas).
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
