@@ -11,7 +11,7 @@ use crate::probe::{self, Probe};
 use crate::stream;
 use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
 use windows::Win32::Media::Audio::{
-    DEVICE_STATE_ACTIVE, EDataFlow, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator, eCapture,
+    DEVICE_STATE, DEVICE_STATE_ACTIVE, DEVICE_STATEMASK_ALL, EDataFlow, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator, eCapture,
     eConsole, eRender,
 };
 use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PropVariantToStringAlloc};
@@ -176,6 +176,56 @@ fn list_flow(enumerator: &IMMDeviceEnumerator, flow: EDataFlow) -> Result<Vec<Ra
             is_default: default_id.as_deref() == Some(id.as_str()),
             id,
         });
+    }
+    Ok(out)
+}
+
+/// Um dispositivo do Windows com o filtro de áudio de onde ele vem.
+#[derive(Debug, Clone)]
+pub struct FilterEndpoint {
+    pub endpoint_id: String,
+    pub name: String,
+    pub output: bool,
+    pub active: bool,
+    /// Caminho da interface do filtro de wave (ex.: `...\\wavespeaker2`).
+    pub filter: String,
+}
+
+/// Todos os dispositivos do Windows, ativos ou escondidos, com o filtro de
+/// onde cada um vem.
+pub fn filter_endpoints() -> Result<Vec<FilterEndpoint>, Error> {
+    // PKEY do caminho do filtro de wave de onde o endpoint saiu.
+    const PKEY_FILTER: windows::Win32::Foundation::PROPERTYKEY =
+        windows::Win32::Foundation::PROPERTYKEY {
+            fmtid: windows::core::GUID::from_u128(0x233164c8_1b2c_4c7d_bc68_b671687a2567),
+            pid: 1,
+        };
+    let _com = ComGuard::new()?;
+    let enumerator: IMMDeviceEnumerator = unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)? };
+    let mut out = Vec::new();
+    for (flow, output) in [(eRender, true), (eCapture, false)] {
+        let collection = unsafe { enumerator.EnumAudioEndpoints(flow, DEVICE_STATE(DEVICE_STATEMASK_ALL))? };
+        for i in 0..unsafe { collection.GetCount()? } {
+            let Ok(device) = (unsafe { collection.Item(i) }) else { continue };
+            let Ok(store) = (unsafe { device.OpenPropertyStore(STGM_READ) }) else { continue };
+            let filter = unsafe {
+                let Ok(mut value) = store.GetValue(&PKEY_FILTER) else { continue };
+                let text = PropVariantToStringAlloc(&value);
+                let _ = PropVariantClear(&mut value);
+                let Ok(text) = text else { continue };
+                let s = text.to_string().unwrap_or_default();
+                CoTaskMemFree(Some(text.0 as *const _));
+                s
+            };
+            let state = unsafe { device.GetState() }.unwrap_or_default();
+            out.push(FilterEndpoint {
+                endpoint_id: device_id(&device)?,
+                name: friendly_name(&device).unwrap_or_default(),
+                output,
+                active: state == DEVICE_STATE_ACTIVE,
+                filter,
+            });
+        }
     }
     Ok(out)
 }

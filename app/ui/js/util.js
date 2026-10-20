@@ -72,6 +72,51 @@ const Toast = (() => {
 })()
 
 /**
+ * Caixa que pede um texto. Enter confirma; Esc ou clique fora cancela.
+ * Resolve o texto (sem espaços nas pontas) ou null.
+ */
+function promptDialog({ title, message, value = '', placeholder = '', confirmLabel = 'OK', cancelLabel = 'Cancelar' }) {
+  return new Promise((resolve) => {
+    const close = (answer) => {
+      window.removeEventListener('keydown', onKey, true)
+      backdrop.remove()
+      resolve(answer)
+    }
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        close(null)
+      } else if (e.key === 'Enter') {
+        e.stopPropagation()
+        close(input.value.trim())
+      }
+    }
+    const input = h('input', { type: 'text', value, placeholder, spellcheck: 'false' })
+    const backdrop = h(
+      'div',
+      { class: 'backdrop', onClick: (e) => e.target === backdrop && close(null) },
+      h(
+        'div',
+        { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+        h('h2', null, title),
+        message && h('p', null, message),
+        h('div', { class: 'dialog-input' }, input),
+        h(
+          'div',
+          { class: 'actions' },
+          h('button', { onClick: () => close(null) }, cancelLabel),
+          h('button', { class: 'primary', onClick: () => close(input.value.trim()) }, confirmLabel),
+        ),
+      ),
+    )
+    window.addEventListener('keydown', onKey, true)
+    document.body.append(backdrop)
+    input.focus()
+    input.select()
+  })
+}
+
+/**
  * Caixa de confirmação no visual do app. Enter confirma; Esc ou clique fora
  * cancela. Resolve true/false.
  */

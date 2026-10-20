@@ -170,6 +170,8 @@ textarea { resize: vertical; }
   overflow-y: auto;
 }
 .side[hidden] { display: none; }
+.panel [hidden] { display: none; }
+.toolbar button[hidden] { display: none; }
 
 /* ------------------------------------------------------------------ canvas */
 
@@ -415,6 +417,8 @@ textarea { resize: vertical; }
 .dialog h2 { margin: 0 0 8px; font-size: 16px; }
 .dialog p { margin: 0; color: var(--muted); line-height: 1.45; }
 .dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.dialog-input { margin-top: 14px; display: flex; }
+.dialog-input input { flex: 1; }
 .dialog button.primary:focus-visible { outline: 2px solid var(--input); outline-offset: 2px; }
 @keyframes fade { from { opacity: 0; } }
 @keyframes pop { from { opacity: 0; transform: scale(0.97); } }

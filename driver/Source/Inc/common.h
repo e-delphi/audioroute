@@ -229,6 +229,9 @@ typedef struct _ENDPOINT_MINIPAIR
 
     // General endpoint flags (one of more ENDPOINT_<flag-type>, see above)
     ULONG                           DeviceFlags;
+
+    // audioroute: par (0..AUDIOROUTE_PAIRS-1) a que este endpoint pertence.
+    ULONG                           Pair;
 } ENDPOINT_MINIPAIR;
 
 //=============================================================================

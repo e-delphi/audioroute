@@ -21,12 +21,17 @@ const Controller = {
       showLoopbacks: true,
       selection: null, // { kind: 'device' | 'cable', id }
       fitted: false,
-      virtual: null, // { speaker, mic }: nós do driver do audioroute
+      virtual: null, // { max, pairs: [{ pair, name, speaker, mic }] }: pares do driver
     }
 
     // ---- elementos ----
 
     const loopbacksButton = h('button', { class: 'active', onClick: toggleLoopbacks }, '🔁 Loopbacks')
+    const addPairButton = h(
+      'button',
+      { hidden: true, title: 'Cria um alto-falante e um microfone virtuais com o nome que você escolher', onClick: addPair },
+      '➕ Par virtual',
+    )
     const network = h('span', { class: 'net' })
     const canvas = h('div')
     const side = h('div', { class: 'side', hidden: true })
@@ -41,6 +46,7 @@ const Controller = {
           h('span', { class: 'role' }, 'Controlador principal'),
           network,
           h('span', { class: 'spacer' }),
+          addPairButton,
           loopbacksButton,
           h('button', { onClick: () => act(() => Api.refresh()) }, '⟳ Atualizar dispositivos'),
           switchRoleButton(
@@ -65,8 +71,9 @@ const Controller = {
     // ---- dados derivados ----
 
     const byId = () => new Map(state.devices.map((d) => [d.id, d]))
-    const isVirtualSpeaker = (d) => !!d && d.id === state.virtual?.speaker
-    const isVirtual = (d) => !!d && (d.id === state.virtual?.speaker || d.id === state.virtual?.mic)
+    const pairOf = (d) => (d && state.virtual?.pairs.find((p) => p.speaker === d.id || p.mic === d.id)) || null
+    const isVirtualSpeaker = (d) => !!d && !!state.virtual?.pairs.some((p) => p.speaker === d.id)
+    const isVirtual = (d) => !!pairOf(d)
     // A saída do Windows: uma saída deste computador, ou o alto-falante
     // virtual (aí o som dos programas entra no canvas por ele).
     const windowsOutput = () =>
@@ -106,7 +113,8 @@ const Controller = {
           'div',
           { class: 'badges' },
           d.node && h('span', { class: 'badge node', title: `Dispositivo do computador ${d.node}, pela rede` }, `💻 ${d.node}`),
-          isVirtual(d) && h('span', { class: 'badge virtual', title: 'Dispositivo virtual do driver do audioroute' }, 'virtual'),
+          isVirtual(d) &&
+            h('span', { class: 'badge virtual', title: 'Dispositivo virtual do driver do audioroute' }, `virtual ${pairOf(d).pair + 1}`),
           d.isDefault && h('span', { class: 'badge', title: isVirtualSpeaker(d) ? 'O Windows toca nele' : '' }, 'padrão'),
           d.mode === 'exclusive' && h('span', { class: 'badge exclusive' }, 'exclusivo'),
           d.stream && h('span', { class: 'badge', title: d.stream.format }, `${d.stream.periodMs.toFixed(1)} ms`),
@@ -261,6 +269,8 @@ const Controller = {
           : {
               key,
               ...DevicePanel.create({
+                renamePair: (pair, name) => act(async () => warn(await Api.virtualRename(pair, name))),
+                removePair: removePair,
                 description: (text) => withDevice((id) => Api.setDescription(id, text)),
                 delay: (ms) => withDevice((id) => Api.setDelay(id, ms)),
                 mode: (mode) => withDevice((id) => Api.setMode(id, mode)),
@@ -271,7 +281,7 @@ const Controller = {
         side.hidden = false
       }
       if (route) panel.update(route, state.stats[routeId(route.from, route.to)], nameOf(route.from), nameOf(route.to))
-      else panel.update(device)
+      else panel.update(device, pairOf(device))
     }
 
     function withRoute(fn) {
@@ -326,6 +336,49 @@ const Controller = {
       await reload().catch(Toast.show)
     }
 
+    // ---- pares virtuais ----
+
+    function warn(result) {
+      const w = result?.warnings || []
+      if (w.length) Toast.show(`O Windows não aceitou: ${w.join('; ')}`)
+    }
+
+    async function loadVirtual() {
+      state.virtual = await Api.virtualDevices().catch(() => null)
+      const v = state.virtual
+      addPairButton.hidden = !v || v.pairs.length >= v.max
+    }
+
+    async function addPair() {
+      const name = await promptDialog({
+        title: 'Novo par virtual',
+        message:
+          'Cria um alto-falante e um microfone virtuais. Os programas veem os dois com este nome, ' +
+          'por exemplo "Discord (audioroute)".',
+        placeholder: 'Ex.: Discord, Jogo, Música',
+        confirmLabel: 'Criar',
+      })
+      if (!name) return
+      act(async () => {
+        warn(await Api.virtualAdd(name))
+        await loadVirtual()
+      })
+    }
+
+    async function removePair(pair) {
+      const ok = await confirmDialog({
+        title: 'Remover par virtual?',
+        message: 'O alto-falante e o microfone deste par somem do Windows e os cabos ligados a eles param.',
+        confirmLabel: 'Remover',
+      })
+      if (!ok) return
+      state.selection = null
+      act(async () => {
+        warn(await Api.virtualRemove(pair))
+        await loadVirtual()
+      })
+    }
+
     function toggleLoopbacks() {
       state.showLoopbacks = !state.showLoopbacks
       loopbacksButton.classList.toggle('active', state.showLoopbacks)
@@ -378,9 +431,7 @@ const Controller = {
     window.addEventListener('keydown', onKey)
     Levels.start()
 
-    Api.virtualDevices()
-      .then((v) => (state.virtual = v))
-      .catch(() => {})
+    loadVirtual()
       .then(() => Api.loadLayout())
       .then((layout) => (state.layout = layout || {}))
       .catch(Toast.show)

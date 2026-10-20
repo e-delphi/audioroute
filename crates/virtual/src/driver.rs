@@ -9,10 +9,12 @@ use windows::Win32::Storage::FileSystem::{CreateFileW, FILE_ATTRIBUTE_NORMAL, FI
 use windows::Win32::System::IO::DeviceIoControl;
 use windows::core::w;
 
-pub const IOCTL_VERSION: u32 = 1;
+pub const IOCTL_VERSION: u32 = 2;
 pub const SAMPLE_RATE: u32 = 48_000;
 pub const CHANNELS: u32 = 2;
 pub const BITS_PER_SAMPLE: u32 = 32;
+/// Pares alto-falante/microfone do driver (AUDIOROUTE_PAIRS).
+pub const MAX_PAIRS: u32 = 4;
 
 const IOCTL_GET_INFO: u32 = 0x8A55_2000;
 const IOCTL_READ_SPEAKER: u32 = 0x8A55_6004;
@@ -25,6 +27,8 @@ pub struct Info {
     pub sample_rate: u32,
     pub channels: u32,
     pub bits_per_sample: u32,
+    /// Pares alto-falante/microfone que o driver tem.
+    pub pairs: u32,
 }
 
 /// Por que o driver não está disponível.
@@ -92,6 +96,7 @@ impl Driver {
             || info.sample_rate != SAMPLE_RATE
             || info.channels != CHANNELS
             || info.bits_per_sample != BITS_PER_SAMPLE
+            || info.pairs != MAX_PAIRS
         {
             return Err(OpenError::Version(info));
         }
@@ -131,17 +136,23 @@ impl Driver {
     }
 
     /// Preenche `out` (estéreo intercalado) com o que tocou no alto-falante
-    /// virtual. Sem som tocando, vem silêncio.
-    pub fn read_speaker(&self, out: &mut [i32]) -> io::Result<()> {
+    /// do par. Sem som tocando, vem silêncio.
+    pub fn read_speaker(&self, pair: u32, out: &mut [i32]) -> io::Result<()> {
         let bytes = unsafe { std::slice::from_raw_parts_mut(out.as_mut_ptr().cast::<u8>(), size_of_val(out)) };
-        self.ioctl(IOCTL_READ_SPEAKER, None, Some(bytes))?;
+        self.ioctl(IOCTL_READ_SPEAKER, Some(&pair.to_le_bytes()), Some(bytes))?;
         Ok(())
     }
 
-    /// Manda `data` (estéreo intercalado) para o microfone virtual.
-    pub fn write_mic(&self, data: &[i32]) -> io::Result<()> {
-        let bytes = unsafe { std::slice::from_raw_parts(data.as_ptr().cast::<u8>(), size_of_val(data)) };
-        self.ioctl(IOCTL_WRITE_MIC, Some(bytes), None)?;
+    /// Manda `data` (estéreo intercalado) para o microfone do par. `scratch`
+    /// é reaproveitado entre chamadas (cabeçalho + amostras), sem alocar.
+    pub fn write_mic(&self, pair: u32, data: &[i32], scratch: &mut Vec<u8>) -> io::Result<()> {
+        scratch.clear();
+        scratch.extend_from_slice(&pair.to_le_bytes());
+        scratch.extend_from_slice(&0u32.to_le_bytes()); // reservado
+        for s in data {
+            scratch.extend_from_slice(&s.to_le_bytes());
+        }
+        self.ioctl(IOCTL_WRITE_MIC, Some(scratch), None)?;
         Ok(())
     }
 }

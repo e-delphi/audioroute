@@ -80,8 +80,15 @@ const Api = {
    * ou { role: 'participant', status: { state, manual, controller, address, streams, error } }.
    */
   network: () => Bridge.call('network'),
-  /** Ids dos virtuais do driver: { speaker, mic }, ou null sem o driver. */
+  /**
+   * Pares virtuais do driver: { max, pairs: [{ pair, name, speaker, mic }] },
+   * ou null sem o driver. speaker/mic são os ids dos nós no canvas.
+   */
   virtualDevices: () => Bridge.call('virtual_devices'),
+  /** Usa um par livre. Devolve { warnings } (o que o Windows não aceitou). */
+  virtualAdd: (name) => Bridge.call('virtual_add', { name }),
+  virtualRename: (pair, name) => Bridge.call('virtual_rename', { pair, name }),
+  virtualRemove: (pair) => Bridge.call('virtual_remove', { pair }),
   /** Firewall do Windows: { ok, network, problem }. */
   firewall: () => Bridge.call('firewall'),
   /** Libera o audioroute no firewall (o Windows pede administrador). */

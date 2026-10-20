@@ -6,5 +6,8 @@ edition.workspace = true
 
 [dependencies]
 audioroute-core.workspace = true
+audioroute-wasapi.workspace = true
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 uuid = "1.28.0"
 windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Threading"] }

@@ -31,7 +31,7 @@ const ENDPOINTS_INTERVAL: Duration = Duration::from_secs(3);
 
 /// Dispositivos deste computador (WASAPI + virtuais do driver) e os dos
 /// participantes da rede.
-type Backend = NetBackend<VirtualBackend<WasapiBackend>>;
+type Backend = NetBackend<VirtualBackend>;
 
 #[derive(Default)]
 struct Inner {
@@ -39,7 +39,7 @@ struct Inner {
     /// Só os dispositivos deste computador.
     backend: Option<WasapiBackend>,
     /// Alto-falante e microfone virtuais (driver do audioroute).
-    virt: Option<VirtualBackend<WasapiBackend>>,
+    virt: Option<VirtualBackend>,
     service: Option<Service<Backend>>,
     /// Controlador: aceita os participantes da rede.
     hub: Option<NetHub>,
@@ -205,10 +205,22 @@ fn handle(cmd: &str, args: &Value) -> CmdResult {
             Ok(Value::Null)
         }
         "network" => Ok(st.lock().network()),
-        "virtual_devices" => Ok(match &st.lock().virt {
-            Some(v) => json!({ "speaker": v.speaker_id().to_string(), "mic": v.mic_id().to_string() }),
-            None => Value::Null,
-        }),
+        "virtual_devices" => {
+            let inner = st.lock();
+            Ok(match &inner.virt {
+                Some(v) if v.installed() => json!({ "max": audioroute_virtual::driver::MAX_PAIRS, "pairs": v.pairs() }),
+                _ => Value::Null,
+            })
+        }
+        "virtual_add" => virtual_change(st, |v| v.add_pair(&str_arg(args, "name")?).map(|_| ())),
+        "virtual_rename" => {
+            let pair = f64_arg(args, "pair")? as u32;
+            virtual_change(st, |v| v.rename_pair(pair, &str_arg(args, "name")?))
+        }
+        "virtual_remove" => {
+            let pair = f64_arg(args, "pair")? as u32;
+            virtual_change(st, |v| v.remove_pair(pair))
+        }
         "firewall" => to_value(crate::firewall::status()),
         "allow_firewall" => to_value(crate::firewall::allow()?),
         "set_controller_address" => {
@@ -302,7 +314,13 @@ fn set_role(st: &AppState, role: &str) -> Result<(), String> {
         let hub = NetHub::start(computer_name(), machine_id, HubOptions::default())
             .map_err(|e| format!("não foi possível abrir a rede: {e}"))?;
         let path = data_dir()?.join("config.json");
-        let virt = VirtualBackend::new(backend.clone(), &IdGenerator::new(machine_id_for_ids.clone()));
+        let virt = VirtualBackend::new(
+            backend.clone(),
+            &IdGenerator::new(machine_id_for_ids.clone()),
+            Some(data_dir()?.join("virtual.json")),
+        );
+        // Mostra os pares em uso no Windows e esconde os livres.
+        virt.apply_windows();
         let net = NetBackend { local: virt.clone(), hub: hub.clone() };
         inner.virt = Some(virt);
         match Service::open(net, path) {
@@ -320,6 +338,19 @@ fn set_role(st: &AppState, role: &str) -> Result<(), String> {
     inner.backend = Some(backend);
     inner.role = Some(role.to_owned());
     Ok(())
+}
+
+/// Muda os pares virtuais, aplica no Windows e recarrega os dispositivos.
+/// Devolve os avisos do Windows (ex.: sem permissão para renomear).
+fn virtual_change(st: &AppState, change: impl FnOnce(&VirtualBackend) -> Result<(), String>) -> CmdResult {
+    let mut inner = st.lock();
+    let virt = inner.virt.clone().ok_or("os dispositivos virtuais só existem no controlador principal")?;
+    change(&virt)?;
+    let warnings = virt.apply_windows();
+    if let Some(s) = inner.service.as_mut() {
+        s.refresh().map_err(|e| e.to_string())?;
+    }
+    Ok(json!({ "warnings": warnings }))
 }
 
 /// Faz o Windows tocar tudo (vídeos, jogos, notificações) na saída `id`.
@@ -346,8 +377,8 @@ fn set_windows_output(st: &AppState, id: &str) -> Result<(), String> {
     let mut uuid = Uuid::parse_str(id).map_err(|e| e.to_string())?;
     // Cabo do Windows até a entrada "Alto-falantes (audioroute)": o padrão do
     // Windows vira o alto-falante virtual, e o som dos programas entra no canvas.
-    if let Some(virt) = inner_virt.as_ref().filter(|v| v.speaker_id() == uuid) {
-        uuid = virt.windows_speaker().ok_or("o alto-falante virtual não está no Windows")?;
+    if let Some(speaker) = inner_virt.as_ref().and_then(|v| v.windows_speaker(uuid)) {
+        uuid = speaker;
     }
     backend.set_default_output(uuid).map_err(|e| e.to_string())?;
     service.refresh().map_err(|e| e.to_string())

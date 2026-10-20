@@ -1412,7 +1412,7 @@ ByteDisplacement - # of bytes to process.
     {
         ULONG runWrite = min(ByteDisplacement, m_ulDmaBufferSize - bufferOffset);
         
-        LoopbackReadCapture32(&m_LoopbackReader, m_pDmaBuffer + bufferOffset, runWrite);
+        LoopbackReadCapture32(m_pMiniport->GetPair(), &m_LoopbackReader, m_pDmaBuffer + bufferOffset, runWrite);
            	
         bufferOffset = (bufferOffset + runWrite) % m_ulDmaBufferSize;
         ByteDisplacement -= runWrite;
@@ -1444,7 +1444,7 @@ ByteDisplacement - # of bytes to process.
     while (ByteDisplacement > 0)
     {
         ULONG runWrite = min(ByteDisplacement, m_ulDmaBufferSize - bufferOffset);
-        LoopbackWriteRender16(m_pDmaBuffer + bufferOffset, runWrite);
+        LoopbackWriteRender16(m_pMiniport->GetPair(), m_pDmaBuffer + bufferOffset, runWrite);
         if (!g_DoNotCreateDataFiles)
         {
             m_SaveData.WriteData(m_pDmaBuffer + bufferOffset, runWrite);

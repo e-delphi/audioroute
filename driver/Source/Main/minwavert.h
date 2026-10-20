@@ -224,6 +224,14 @@ private:
 
 #pragma code_seg()
 
+public:
+#pragma code_seg()
+    // audioroute: par deste endpoint (ver ENDPOINT_MINIPAIR::Pair).
+    ULONG GetPair()
+    {
+        return m_pMiniportPair->Pair;
+    }
+
 protected:
 #pragma code_seg()
     BOOL IsRenderDevice()

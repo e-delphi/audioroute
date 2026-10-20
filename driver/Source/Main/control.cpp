@@ -74,25 +74,46 @@ static NTSTATUS DeviceControl(_Inout_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack)
         info->SampleRate = AUDIOROUTE_SAMPLE_RATE;
         info->Channels = AUDIOROUTE_CHANNELS;
         info->BitsPerSample = AUDIOROUTE_BITS_PER_SAMPLE;
+        info->Pairs = AUDIOROUTE_PAIRS;
         return Complete(Irp, STATUS_SUCCESS, sizeof(AUDIOROUTE_INFO));
     }
 
     case IOCTL_AUDIOROUTE_READ_SPEAKER:
     {
-        ULONG bytes = outLen - outLen % frameBytes;
-        if (bytes > 0 && buffer != NULL)
+        // METHOD_BUFFERED: entrada e saída dividem o buffer; o par é lido antes.
+        if (inLen < sizeof(ULONG) || buffer == NULL)
         {
-            LoopbackAppReadSpeaker((BYTE*)buffer, bytes);
+            return Complete(Irp, STATUS_INVALID_PARAMETER, 0);
+        }
+        ULONG pair = *(PULONG)buffer;
+        if (pair >= AUDIOROUTE_PAIRS)
+        {
+            return Complete(Irp, STATUS_INVALID_PARAMETER, 0);
+        }
+        ULONG bytes = outLen - outLen % frameBytes;
+        if (bytes > 0)
+        {
+            LoopbackAppReadSpeaker(pair, (BYTE*)buffer, bytes);
         }
         return Complete(Irp, STATUS_SUCCESS, bytes);
     }
 
     case IOCTL_AUDIOROUTE_WRITE_MIC:
     {
-        ULONG bytes = inLen - inLen % frameBytes;
-        if (bytes > 0 && buffer != NULL)
+        if (inLen < sizeof(AUDIOROUTE_MIC_HEADER) || buffer == NULL)
         {
-            LoopbackAppWriteMic((const BYTE*)buffer, bytes);
+            return Complete(Irp, STATUS_INVALID_PARAMETER, 0);
+        }
+        PAUDIOROUTE_MIC_HEADER header = (PAUDIOROUTE_MIC_HEADER)buffer;
+        if (header->Pair >= AUDIOROUTE_PAIRS)
+        {
+            return Complete(Irp, STATUS_INVALID_PARAMETER, 0);
+        }
+        ULONG bytes = inLen - sizeof(AUDIOROUTE_MIC_HEADER);
+        bytes -= bytes % frameBytes;
+        if (bytes > 0)
+        {
+            LoopbackAppWriteMic(header->Pair, (const BYTE*)(header + 1), bytes);
         }
         return Complete(Irp, STATUS_SUCCESS, 0);
     }

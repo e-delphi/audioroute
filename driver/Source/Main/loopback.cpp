@@ -6,18 +6,20 @@ Module Name:
 
 Abstract:
 
-    Anéis de áudio do audioroute (ver loopback.h).
+    Anéis de áudio do audioroute, um conjunto por par (ver loopback.h).
 
     Roda em DISPATCH_LEVEL (chamado pelo timer dos streams): sem código
-    paginável, sem alocação; os anéis são estáticos, em memória não paginada.
+    paginável, sem alocação; os anéis são estáticos, em memória não paginada
+    (AUDIOROUTE_PAIRS × 2 anéis de 128 KB).
 
 --*/
 
 #include <definitions.h>
 #include "loopback.h"
+#include "audioroute_ioctl.h"
 
-// ~0,68 s de áudio por anel. Potência de 2 para o índice ser só uma máscara.
-#define LOOPBACK_FRAMES     32768
+// ~0,34 s de áudio por anel. Potência de 2 para o índice ser só uma máscara.
+#define LOOPBACK_FRAMES     16384
 #define LOOPBACK_MASK       (LOOPBACK_FRAMES - 1)
 #define LOOPBACK_CHANNELS   2
 // Folga entre quem escreve e quem lê: 4 ms a 48 kHz. Os anéis andam de
@@ -31,10 +33,22 @@ typedef struct _RING
     KSPIN_LOCK  Lock;       // zero é um spin lock válido (KeInitializeSpinLock só zera)
 } RING, *PRING;
 
-static RING             g_Speaker;          // alto-falante virtual → (microfone, app)
-static RING             g_Mic;              // app → microfone virtual
+typedef struct _PAIR
+{
+    RING            Speaker;    // alto-falante → (microfone, app)
+    RING            Mic;        // app → microfone
+    LOOPBACK_READER AppReader;  // posição do app no anel do alto-falante
+    volatile LONG   AppMic;     // o app já escreveu no microfone deste par
+} PAIR, *PPAIR;
+
+static PAIR             g_Pairs[AUDIOROUTE_PAIRS];
 static volatile LONG    g_AppConnected;     // app com \\.\audioroute aberto
-static LOOPBACK_READER  g_AppReader;        // posição do app no anel do alto-falante
+
+#pragma code_seg()
+static PPAIR GetPair(_In_ ULONG Pair)
+{
+    return Pair < AUDIOROUTE_PAIRS ? &g_Pairs[Pair] : NULL;
+}
 
 #pragma code_seg()
 static VOID RingWrite32(_Inout_ PRING Ring, _In_reads_(Frames * LOOPBACK_CHANNELS) const INT32* Samples, _In_ ULONG Frames)
@@ -96,8 +110,13 @@ static VOID RingRead32(_Inout_ PRING Ring, _Inout_ PLOOPBACK_READER Reader, _Out
 }
 
 #pragma code_seg()
-VOID LoopbackWriteRender16(_In_reads_bytes_(Bytes) const BYTE* Data, _In_ ULONG Bytes)
+VOID LoopbackWriteRender16(_In_ ULONG Pair, _In_reads_bytes_(Bytes) const BYTE* Data, _In_ ULONG Bytes)
 {
+    PPAIR pair = GetPair(Pair);
+    if (pair == NULL)
+    {
+        return;
+    }
     const INT16* in = (const INT16*)Data;
     ULONG frames = Bytes / (sizeof(INT16) * LOOPBACK_CHANNELS);
     INT32 chunk[256 * LOOPBACK_CHANNELS];
@@ -110,37 +129,59 @@ VOID LoopbackWriteRender16(_In_reads_bytes_(Bytes) const BYTE* Data, _In_ ULONG 
         {
             chunk[i] = (INT32)in[i] * 65536;
         }
-        RingWrite32(&g_Speaker, chunk, n);
+        RingWrite32(&pair->Speaker, chunk, n);
         in += n * LOOPBACK_CHANNELS;
         frames -= n;
     }
 }
 
 #pragma code_seg()
-VOID LoopbackReadCapture32(_Inout_ PLOOPBACK_READER Reader, _Out_writes_bytes_(Bytes) BYTE* Data, _In_ ULONG Bytes)
+VOID LoopbackReadCapture32(_In_ ULONG Pair, _Inout_ PLOOPBACK_READER Reader, _Out_writes_bytes_(Bytes) BYTE* Data, _In_ ULONG Bytes)
 {
-    PRING source = g_AppConnected ? &g_Mic : &g_Speaker;
+    PPAIR pair = GetPair(Pair);
+    if (pair == NULL)
+    {
+        RtlZeroMemory(Data, Bytes);
+        return;
+    }
+    PRING source = (g_AppConnected && pair->AppMic) ? &pair->Mic : &pair->Speaker;
     RingRead32(source, Reader, (INT32*)Data, Bytes / (sizeof(INT32) * LOOPBACK_CHANNELS));
 }
 
 #pragma code_seg()
 VOID LoopbackAppConnected(_In_ BOOLEAN Connected)
 {
-    KIRQL irql;
-    KeAcquireSpinLock(&g_Speaker.Lock, &irql);
-    g_AppReader.Started = FALSE;    // o app começa do ponto atual
-    KeReleaseSpinLock(&g_Speaker.Lock, irql);
+    for (ULONG i = 0; i < AUDIOROUTE_PAIRS; i++)
+    {
+        KIRQL irql;
+        KeAcquireSpinLock(&g_Pairs[i].Speaker.Lock, &irql);
+        g_Pairs[i].AppReader.Started = FALSE;   // o app começa do ponto atual
+        KeReleaseSpinLock(&g_Pairs[i].Speaker.Lock, irql);
+        InterlockedExchange(&g_Pairs[i].AppMic, 0);
+    }
     InterlockedExchange(&g_AppConnected, Connected ? 1 : 0);
 }
 
 #pragma code_seg()
-VOID LoopbackAppReadSpeaker(_Out_writes_bytes_(Bytes) BYTE* Data, _In_ ULONG Bytes)
+VOID LoopbackAppReadSpeaker(_In_ ULONG Pair, _Out_writes_bytes_(Bytes) BYTE* Data, _In_ ULONG Bytes)
 {
-    RingRead32(&g_Speaker, &g_AppReader, (INT32*)Data, Bytes / (sizeof(INT32) * LOOPBACK_CHANNELS));
+    PPAIR pair = GetPair(Pair);
+    if (pair == NULL)
+    {
+        RtlZeroMemory(Data, Bytes);
+        return;
+    }
+    RingRead32(&pair->Speaker, &pair->AppReader, (INT32*)Data, Bytes / (sizeof(INT32) * LOOPBACK_CHANNELS));
 }
 
 #pragma code_seg()
-VOID LoopbackAppWriteMic(_In_reads_bytes_(Bytes) const BYTE* Data, _In_ ULONG Bytes)
+VOID LoopbackAppWriteMic(_In_ ULONG Pair, _In_reads_bytes_(Bytes) const BYTE* Data, _In_ ULONG Bytes)
 {
-    RingWrite32(&g_Mic, (const INT32*)Data, Bytes / (sizeof(INT32) * LOOPBACK_CHANNELS));
+    PPAIR pair = GetPair(Pair);
+    if (pair == NULL)
+    {
+        return;
+    }
+    RingWrite32(&pair->Mic, (const INT32*)Data, Bytes / (sizeof(INT32) * LOOPBACK_CHANNELS));
+    InterlockedExchange(&pair->AppMic, 1);
 }

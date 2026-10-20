@@ -13,8 +13,9 @@ mod policy;
 mod probe;
 mod stream;
 
-pub use enumerate::{Endpoint, Error, WasapiBackend};
+pub use enumerate::{Endpoint, Error, FilterEndpoint, WasapiBackend, filter_endpoints};
 pub use machine_id::machine_id;
+pub use policy::{set_endpoint_name, set_endpoint_visible};
 pub use meter::SystemMeter;
 pub use probe::Probe;
 pub use stream::WasapiStream;

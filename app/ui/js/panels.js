@@ -95,7 +95,10 @@ const DevicePanel = {
   /** Períodos oferecidos; o backend arredonda para o que o hardware aceitar. */
   PERIODS: [1, 2, 2.67, 3, 4, 5, 8, 10, 20],
 
-  /** actions: description(text), delay(ms), mode(mode), period(ms | null). */
+  /**
+   * actions: description(text), delay(ms), mode(mode), period(ms | null),
+   * renamePair(pair, name), removePair(pair).
+   */
   create(actions) {
     const { MAX_DELAY, PERIODS } = DevicePanel
     let device = null
@@ -117,6 +120,24 @@ const DevicePanel = {
     const delayHint = h('small')
     const description = h('textarea', { rows: 3, placeholder: 'Ex.: microfone da mesa da sala' })
     const id = h('p', { class: 'id' })
+    // Par virtual (só nos dispositivos do driver).
+    const pairName = h('input', { type: 'text', placeholder: 'Nome do par (ex.: Discord)' })
+    const pairTitle = h('span')
+    let pair = null
+    pairName.addEventListener('change', () => {
+      const name = pairName.value.trim()
+      if (pair && name !== pair.name) actions.renamePair(pair.pair, name)
+    })
+    const pairSection = h(
+      'div',
+      { class: 'field' },
+      pairTitle,
+      pairName,
+      h('small', null, 'Nome que os programas veem: "<nome> (audioroute)", no alto-falante e no microfone do par.'),
+      h('button', { class: 'danger', onClick: () => pair && actions.removePair(pair.pair) }, 'Remover par'),
+    )
+    const modeField = h('div', { class: 'field' })
+    const periodField = h('label', { class: 'field' })
 
     const saveDelay = (input) => {
       const ms = Math.min(MAX_DELAY, Math.max(0, Math.round(Number(input.value) || 0)))
@@ -137,14 +158,9 @@ const DevicePanel = {
       h('h2', null, 'Dispositivo'),
       name,
       meta,
-      h('div', { class: 'field' }, h('span', null, 'Modo'), h('div', { class: 'row' }, shared, exclusive), modeHint),
-      h(
-        'label',
-        { class: 'field' },
-        h('span', null, 'Período'),
-        period,
-        h('small', null, 'Menor = menos latência, mas exige mais do driver. Se o som falhar, aumente.'),
-      ),
+      pairSection,
+      modeField,
+      periodField,
       running,
       h(
         'label',
@@ -157,8 +173,24 @@ const DevicePanel = {
       id,
     )
 
-    function update(d) {
+    modeField.append(h('span', null, 'Modo'), h('div', { class: 'row' }, shared, exclusive), modeHint)
+    periodField.append(
+      h('span', null, 'Período'),
+      period,
+      h('small', null, 'Menor = menos latência, mas exige mais do driver. Se o som falhar, aumente.'),
+    )
+
+    function update(d, virtualPair = null) {
       device = d
+      pair = virtualPair
+      pairSection.hidden = !pair
+      // Os virtuais não têm modo nem período: andam em blocos de 2 ms.
+      modeField.hidden = !!pair
+      periodField.hidden = !!pair
+      if (pair) {
+        pairTitle.textContent = `Par virtual ${pair.pair + 1}`
+        if (!editing(pairName)) pairName.value = pair.name
+      }
       const kind = d.loopback ? 'Loopback (entrada)' : d.kind === 'output' ? 'Saída' : 'Entrada'
       name.textContent = d.name
       meta.replaceChildren(

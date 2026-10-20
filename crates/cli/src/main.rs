@@ -36,6 +36,53 @@ fn start() -> Result<()> {
         if has("json") { print_json(&devices) } else { print_table(&devices) };
         return Ok(());
     }
+    // Pares virtuais do driver.
+    if has("virtual") || value("virtual-add").is_some() || value("virtual-remove").is_some() {
+        let v = local_backend()?;
+        if let Some(name) = value("virtual-add") {
+            let pair = v.add_pair(name).map_err(anyhow::Error::msg)?;
+            println!("par {} em uso: {name}", pair + 1);
+        }
+        if let Some(n) = value("virtual-remove") {
+            let n: u32 = n.parse().context("--virtual-remove N (1, 2, ...)")?;
+            v.remove_pair(n.checked_sub(1).context("os pares começam em 1")?).map_err(anyhow::Error::msg)?;
+        }
+        for w in v.apply_windows() {
+            println!("aviso: {w}");
+        }
+        for p in v.pairs() {
+            println!("par {}  {:<20} alto-falante {}  microfone {}", p.pair + 1, format!("{:?}", p.name), p.speaker, p.mic);
+        }
+        return Ok(());
+    }
+    // Diagnóstico dos dispositivos do driver no Windows.
+    if let Some(pattern) = value("filters") {
+        let pattern = pattern.to_lowercase();
+        let matches = |e: &audioroute_wasapi::FilterEndpoint| {
+            e.name.to_lowercase().contains(&pattern) || e.filter.to_lowercase().contains(&pattern)
+        };
+        for e in audioroute_wasapi::filter_endpoints()?.into_iter().filter(matches) {
+            println!(
+                "{} {}  {}  {:?}  {}",
+                if e.output { "saída  " } else { "entrada" },
+                if e.active { "ativo   " } else { "escondido" },
+                e.endpoint_id,
+                e.name,
+                e.filter
+            );
+        }
+        return Ok(());
+    }
+    if let Some(id) = value("endpoint-name") {
+        let name = args.iter().skip_while(|a| *a != id).nth(1).context("uso: --endpoint-name ID NOME")?;
+        audioroute_wasapi::set_endpoint_name(id, name)?;
+        return Ok(());
+    }
+    if let Some(id) = value("endpoint-visible") {
+        let on = args.iter().skip_while(|a| *a != id).nth(1).context("uso: --endpoint-visible ID 0|1")?;
+        audioroute_wasapi::set_endpoint_visible(id, on == "1")?;
+        return Ok(());
+    }
     if has("probe") {
         return probe(&backend()?);
     }
@@ -71,10 +118,12 @@ pub fn backend() -> Result<WasapiBackend> {
 }
 
 /// WASAPI + o alto-falante e o microfone virtuais do driver (se instalado).
-pub fn local_backend() -> Result<audioroute_virtual::VirtualBackend<WasapiBackend>> {
+pub fn local_backend() -> Result<audioroute_virtual::VirtualBackend> {
     let machine_id = audioroute_wasapi::machine_id().context("lendo MachineGuid")?;
     let ids = IdGenerator::new(machine_id);
-    Ok(audioroute_virtual::VirtualBackend::new(WasapiBackend::new(ids.clone()), &ids))
+    // Os mesmos pares do app (%APPDATA%\com.audioroute.appirtual.json).
+    let state = std::env::var_os("APPDATA").map(|d| std::path::PathBuf::from(d).join("com.audioroute.app").join("virtual.json"));
+    Ok(audioroute_virtual::VirtualBackend::new(WasapiBackend::new(ids.clone()), &ids, state))
 }
 
 fn print_table(devices: &[DeviceInfo]) {

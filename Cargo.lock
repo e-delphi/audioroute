@@ -73,6 +73,9 @@ name = "audioroute-virtual"
 version = "0.1.0"
 dependencies = [
  "audioroute-core",
+ "audioroute-wasapi",
+ "serde",
+ "serde_json",
  "uuid",
  "windows",
 ]
