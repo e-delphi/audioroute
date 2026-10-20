@@ -231,6 +231,7 @@ impl NetHub {
                 max_callback_frames: MAX_FRAMES as u32,
                 device_latency_frames: info.device_latency_frames,
                 native_format: format!("rede · {}", info.format),
+                steady_clock: false,
             },
             alive,
             on_drop: Some(Box::new(move || {
@@ -279,6 +280,7 @@ impl NetHub {
                 // O buffer e o driver de lá (o participante informa).
                 device_latency_frames: info.device_latency_frames,
                 native_format: format!("rede · {}", info.format),
+                steady_clock: false,
             },
             alive,
             on_drop: Some(Box::new(move || {

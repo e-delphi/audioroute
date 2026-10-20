@@ -60,6 +60,10 @@ pub struct StreamInfo {
     pub device_latency_frames: u32,
     /// Formato nativo negociado (ex.: "48000 Hz, 2 ch, f32").
     pub native_format: String,
+    /// Os callbacks andam pelo relógio do sistema, sem a irregularidade de
+    /// um driver de hardware (ex.: os dispositivos virtuais do audioroute).
+    /// Um cabo entre dois assim dispensa o piso de buffer (`bufferMs`).
+    pub steady_clock: bool,
 }
 
 impl StreamInfo {

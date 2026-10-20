@@ -437,6 +437,7 @@ impl<B: StreamOpener> StreamOpener for SourceOpener<B> {
                 max_callback_frames: MAX_FRAMES as u32,
                 device_latency_frames: 0,
                 native_format: "rede · PCM 16 bits".into(),
+                steady_clock: false,
             },
         }))
     }

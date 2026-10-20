@@ -44,6 +44,7 @@ impl FakeBackend {
             max_callback_frames: 480,
             device_latency_frames: 480,
             native_format: "fake".into(),
+        steady_clock: false,
         }))
     }
 }

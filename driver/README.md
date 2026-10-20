@@ -30,8 +30,8 @@ controla nomes, quantidade e latência, e o áudio não passa por um "cabo" extr
 | 0 ✅ | Ambiente: WDK, bibliotecas Spectre do C++, máquina de teste | compila e instala um driver de exemplo |
 | 1 ✅ | Exemplo da Microsoft compilando sem mudanças | aparece um alto-falante e um microfone de teste |
 | 2 ✅ | Nomes, IDs e INF próprios: `ROOT\audioroute`, "Alto-falantes (audioroute)", "Microfone (audioroute)" | dispositivos com a nossa identidade |
-| 3 ✅ | Cabo interno (`Source/Main/loopback.cpp`): o que toca no alto-falante sai no microfone, com 10 ms de folga; medido na VM: 12/12 cliques, latência 40–42 ms (shared) | já substitui o VB-CABLE |
-| 4 ✅ | Interface com o app: `\\.\audioroute` com IOCTLs (`Source/Inc/audioroute_ioctl.h`, `control.cpp`; no app, `crates/virtual`). Medido na VM, Windows → driver → app → driver → Windows: 12/12 cliques, 72–78 ms, 0 falhas | os virtuais aparecem no canvas do audioroute |
+| 3 ✅ | Cabo interno (`Source/Main/loopback.cpp`): o que toca no alto-falante sai no microfone, com 10 ms de folga; medido na VM: 12/12 cliques, 35–37 ms (shared; os anéis andam de 1 em 1 ms, folga de 4 ms) | já substitui o VB-CABLE |
+| 4 ✅ | Interface com o app: `\\.\audioroute` com IOCTLs (`Source/Inc/audioroute_ioctl.h`, `control.cpp`; no app, `crates/virtual`). Medido na VM, Windows → driver → app → driver → Windows: 12/12 cliques, 46–49 ms, 0 falhas (cabo entre virtuais: 9 ms, sem o piso de bufferMs) | os virtuais aparecem no canvas do audioroute |
 | 5 | Vários pares, nomes configuráveis pelo app | "Microfone para o Discord", "Saída do jogo"… |
 | 6 | Assinatura para distribuir (certificado EV + atestação da Microsoft) | instala em qualquer Windows sem modo de teste |
 

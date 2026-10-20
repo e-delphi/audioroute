@@ -10,7 +10,7 @@
 //! Os mesmos dispositivos vistos pelo WASAPI ficam escondidos (seriam
 //! duplicados com a direção trocada). Sem o driver instalado, nada muda.
 //!
-//! Cada stream tem uma thread que anda pelo relógio do sistema, 5 ms por
+//! Cada stream tem uma thread que anda pelo relógio do sistema, 2 ms por
 //! vez — o mesmo relógio do driver, então não há drift entre os dois.
 
 pub mod driver;
@@ -30,11 +30,11 @@ pub use driver::{Driver, OpenError};
 
 /// Os dispositivos do driver terminam com isto no nome do Windows.
 const SUFFIX: &str = "(audioroute)";
-/// Frames por bloco (5 ms).
-const BLOCK: usize = 240;
+/// Frames por bloco (2 ms).
+const BLOCK: usize = 96;
 const CHANNELS: usize = 2;
-/// Folga que o driver guarda antes de entregar som (10 ms).
-const DRIVER_LATENCY_FRAMES: u32 = 480;
+/// Folga que o driver guarda antes de entregar som (4 ms).
+const DRIVER_LATENCY_FRAMES: u32 = 192;
 
 /// É um dispositivo do driver visto pelo WASAPI?
 fn is_driver_endpoint(d: &DeviceInfo) -> bool {
@@ -181,6 +181,13 @@ impl VirtualStream {
         let (flag, running) = (stop.clone(), alive.clone());
         let name = if matches!(direction, Direction::Capture(_)) { "virtual-speaker" } else { "virtual-mic" };
         let thread = std::thread::Builder::new().name(name.into()).spawn(move || {
+            // Prioridade de áudio (MMCSS), como as threads do WASAPI: sem ela o
+            // agendador atrasa os blocos de 2 ms quando o computador está ocupado.
+            let mut task = 0u32;
+            let mmcss = unsafe {
+                windows::Win32::System::Threading::AvSetMmThreadCharacteristicsW(windows::core::w!("Pro Audio"), &mut task)
+            }
+            .ok();
             let mut raw = vec![0i32; BLOCK * CHANNELS];
             let mut samples = vec![0f32; BLOCK * CHANNELS];
             let start = Instant::now();
@@ -215,6 +222,11 @@ impl VirtualStream {
                 }
                 std::thread::sleep(Duration::from_millis(1));
             }
+            if let Some(h) = mmcss {
+                unsafe {
+                    let _ = windows::Win32::System::Threading::AvRevertMmThreadCharacteristics(h);
+                }
+            }
         })?;
         Ok(Self {
             info: StreamInfo {
@@ -223,6 +235,8 @@ impl VirtualStream {
                 max_callback_frames: BLOCK as u32,
                 device_latency_frames: DRIVER_LATENCY_FRAMES,
                 native_format: "driver audioroute · 48000 Hz, 2 ch, i32".into(),
+                // Anda pelo relógio do sistema, como o driver: sem drift nem jitter de hardware.
+                steady_clock: true,
             },
             alive,
             stop,

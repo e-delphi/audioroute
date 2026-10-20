@@ -20,8 +20,9 @@ Abstract:
 #define LOOPBACK_FRAMES     32768
 #define LOOPBACK_MASK       (LOOPBACK_FRAMES - 1)
 #define LOOPBACK_CHANNELS   2
-// Folga entre quem escreve e quem lê: 10 ms a 48 kHz.
-#define LOOPBACK_LATENCY    480
+// Folga entre quem escreve e quem lê: 4 ms a 48 kHz. Os anéis andam de
+// 1 em 1 ms (timer dos streams) e o app troca blocos de 2 ms.
+#define LOOPBACK_LATENCY    192
 
 typedef struct _RING
 {

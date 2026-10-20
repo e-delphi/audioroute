@@ -1590,12 +1590,15 @@ TimerNotifyRT
         bufferCompleted = TRUE;
     }
 
+    // audioroute: a posição anda a cada tick (1 ms), não só a cada pacote
+    // (10 ms). É ela que move os anéis do alto-falante e do microfone; com
+    // passos de 1 ms a folga entre eles pode ser pequena.
+    _this->UpdatePosition(qpc);
+
     if (!bufferCompleted && !_this->m_bEoSReceived)
     {
         goto End;
     }
-
-    _this->UpdatePosition(qpc);
 
     if (!_this->m_bEoSReceived)
     {

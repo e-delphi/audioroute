@@ -90,6 +90,7 @@ fn clocked(mut tick: impl FnMut() + Send + 'static) -> Box<dyn Stream> {
             max_callback_frames: BLOCK as u32,
             device_latency_frames: 0,
             native_format: "fake".into(),
+        steady_clock: false,
         },
         stop,
     })

@@ -447,6 +447,8 @@ fn finish(
         max_callback_frames: buffer_frames,
         device_latency_frames: latency_frames + period_frames,
         native_format,
+        // Hardware: os callbacks seguem o relógio da placa, com jitter.
+        steady_clock: false,
     };
     Ok(Setup { client, event, format, buffer_frames, exclusive, info })
 }

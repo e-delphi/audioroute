@@ -21,6 +21,8 @@ struct FakeState {
 struct FakeOpener {
     state: Arc<Mutex<FakeState>>,
     broken: Option<Uuid>,
+    /// Dispositivos que dizem andar pelo relógio do sistema.
+    steady: Vec<Uuid>,
 }
 
 struct FakeStream {
@@ -59,6 +61,7 @@ impl FakeOpener {
             max_callback_frames: PERIOD,
             device_latency_frames: PERIOD,
             native_format: "fake".into(),
+            steady_clock: self.steady.contains(&id),
         };
         Ok(Box::new(FakeStream { id, info, state: self.state.clone() }))
     }
@@ -110,6 +113,22 @@ const FILL: usize = 3;
 
 fn near(a: f32, b: f32) -> bool {
     (a - b).abs() < 1e-5
+}
+
+#[test]
+fn steady_clock_cables_skip_the_buffer_floor() {
+    let opener = FakeOpener { steady: vec![MIC_A, SPEAKER], ..Default::default() };
+    let mut e = Engine::new(Box::new(opener), 30);
+    e.connect(MIC_A, SPEAKER, 1.0, false).unwrap(); // os dois no relógio do sistema
+    e.connect(MIC_B, SPEAKER, 1.0, false).unwrap(); // um de hardware no meio
+    let mut target = |from| {
+        let (_, routes) = e.stats();
+        routes.into_iter().find(|r| r.from == from).unwrap().target
+    };
+    // Mínimo: 2 períodos (4 ms) + 5 ms de margem para as threads.
+    assert_eq!(target(MIC_A), frames_to_duration(2 * PERIOD + 240));
+    // Com hardware: o piso de 30 ms continua.
+    assert_eq!(target(MIC_B), Duration::from_millis(30));
 }
 
 #[test]

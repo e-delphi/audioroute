@@ -41,6 +41,9 @@ pub enum EngineError {
 
 /// Margem de segurança somada ao mínimo de buffer, para o jitter dos callbacks.
 const JITTER_MARGIN: Duration = Duration::from_millis(1);
+/// Margem dos cabos entre dois dispositivos de relógio do sistema: são
+/// threads comuns, sujeitas aos atrasos do agendador do Windows.
+const STEADY_MARGIN: Duration = Duration::from_millis(5);
 
 pub struct Engine {
     opener: Box<dyn StreamOpener>,
@@ -283,11 +286,17 @@ impl Engine {
     fn target_frames(&self, from: Uuid, to: Uuid) -> u32 {
         let in_period = self.devices.get(&from).map_or(0, |d| d.info.period_frames);
         let out_period = self.devices.get(&to).map_or(0, |d| d.info.period_frames);
-        let margin = (JITTER_MARGIN.as_secs_f64() * SAMPLE_RATE as f64) as u32;
-        let minimum = in_period + out_period + margin;
+        // As duas pontas no relógio do sistema: só o mínimo (com a margem das
+        // threads) basta. Com um dispositivo de hardware no meio, vale o piso
+        // pedido (bufferMs).
+        let steady = |id: Uuid| self.devices.get(&id).is_some_and(|d| d.info.steady_clock);
+        let both_steady = steady(from) && steady(to);
+        let margin = if both_steady { STEADY_MARGIN } else { JITTER_MARGIN };
+        let minimum = in_period + out_period + (margin.as_secs_f64() * SAMPLE_RATE as f64) as u32;
         let requested = self.buffer_ms * SAMPLE_RATE / 1000;
         let delays = self.delays.get(&from).unwrap_or(&0) + self.delays.get(&to).unwrap_or(&0);
-        requested.max(minimum) + delays * SAMPLE_RATE / 1000
+        let base = if both_steady { minimum } else { requested.max(minimum) };
+        base + delays * SAMPLE_RATE / 1000
     }
 
     fn ensure_device(&mut self, id: Uuid, kind: DeviceKind) -> Result<(), EngineError> {
